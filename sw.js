@@ -1,6 +1,6 @@
 // Service Worker: hält die App offline verfügbar.
 // Bei Änderungen an der App die Versionsnummer erhöhen (gleich wie APP_VERSION in index.html und version.json).
-const CACHE = 'beanksy-1.5';
+const CACHE = 'beanksy-1.6';
 const SHELL = [
   './',
   './index.html',
@@ -25,7 +25,17 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   const url = new URL(req.url);
-  // Nur eigene Dateien; Anfragen an den Worker (Sync) laufen immer direkt ins Netz.
+  // Schriften von Google Fonts: einmal laden, dann aus dem Cache (auch offline)
+  if (req.method === 'GET' && (url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com')) {
+    event.respondWith(
+      caches.match(req).then((cached) => cached || fetch(req).then((res) => {
+        if (res.ok || res.type === 'opaque') { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(req, copy)); }
+        return res;
+      }))
+    );
+    return;
+  }
+  // Sonst nur eigene Dateien; Anfragen an den Worker (Sync) laufen immer direkt ins Netz.
   if (req.method !== 'GET' || url.origin !== self.location.origin) return;
   // Versionsdatei immer frisch aus dem Netz
   if (url.pathname.endsWith('/version.json')) return;
