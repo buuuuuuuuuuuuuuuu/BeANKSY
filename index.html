@@ -345,6 +345,12 @@
   .card.scanned { border-color: var(--accent); }
   .scan-badge { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); margin-bottom: 6px; }
   .scan-badge i { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+  /* Eigene Rückfrage statt confirm()/prompt(), die in der Home-Bildschirm-App nicht zuverlässig erscheinen */
+  #askDialog { z-index: 60; }
+  .ask { padding: 20px 18px calc(20px + var(--safe-bottom)); }
+  .ask p { white-space: pre-line; }
+  .ask input[hidden] { display: none; }
+  .btn.primary.danger { background: var(--danger); border-color: var(--danger); color: #fff; }
   /* Formular-Dialog */
   dialog {
     border: 1px solid var(--line); border-radius: 26px 26px 0 0; padding: 0; margin: auto auto 0;
@@ -450,6 +456,18 @@
     </div>
     <div class="dialog-actions" id="formDeleteRow" hidden>
       <button type="button" class="btn danger" id="formDelete">Bohne löschen</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="askDialog">
+  <form method="dialog" class="ask">
+    <h2 id="askTitle"></h2>
+    <p class="muted" id="askText"></p>
+    <input id="askInput" maxlength="40" autocomplete="off">
+    <div class="dialog-actions">
+      <button type="button" class="btn" id="askNo">Abbrechen</button>
+      <button type="submit" class="btn primary" id="askYes">OK</button>
     </div>
   </form>
 </dialog>
@@ -614,7 +632,7 @@ function schedulePush() {
 
 /* ---------- Version & Update-Hinweis ---------- */
 // Bei jedem Update hier, in version.json und in sw.js (CACHE) dieselbe Nummer eintragen.
-const APP_VERSION = '2.5';
+const APP_VERSION = '2.6';
 $('#appVersion').textContent = `BeANKSY · Version ${APP_VERSION}`;
 async function checkVersion() {
   try {
@@ -981,6 +999,29 @@ function syncThemeColor() {
 }
 matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => { syncThemeColor(); render(); });
 
+/* ---------- Rückfrage ---------- */
+/** ask({title, text, input, yes, danger}) → Promise: true / eingegebener Text, oder null bei Abbruch */
+function ask({ title, text = '', input = null, yes = 'OK', danger = false }) {
+  const d = $('#askDialog'), inp = $('#askInput');
+  $('#askTitle').textContent = title;
+  $('#askText').textContent = text;
+  $('#askText').hidden = !text;
+  inp.hidden = input === null;
+  inp.value = input ?? '';
+  $('#askYes').textContent = yes;
+  $('#askYes').classList.toggle('danger', danger);
+  return new Promise(resolve => {
+    let result = null;
+    const done = v => { result = v; d.close(); };
+    $('#askYes').onclick = e => { e.preventDefault(); done(input === null ? true : inp.value.trim()); };
+    $('#askNo').onclick = () => done(null);
+    d.onclose = () => resolve(result);
+    d.onclick = e => { if (e.target === d) done(null); };
+    d.showModal();
+    if (input !== null) setTimeout(() => { inp.focus(); inp.select(); }, 50);
+  });
+}
+
 /* ---------- Formular ---------- */
 const dlg = $('#beanDialog');
 const form = $('#beanForm');
@@ -1041,9 +1082,10 @@ form.addEventListener('submit', e => {
 });
 
 $('#formCancel').addEventListener('click', () => dlg.close());
-$('#formDelete').addEventListener('click', () => {
+$('#formDelete').addEventListener('click', async () => {
   const bean = data.beans.find(b => b.id === editingId);
-  if (!bean || !confirm(`„${bean.name}“ endgültig löschen?\nTipp: „Aufgebraucht“ archiviert stattdessen.`)) return;
+  if (!bean) return;
+  if (!await ask({ title: `„${bean.name}“ löschen?`, text: 'Das lässt sich nicht rückgängig machen. Tipp: „Aufgebraucht“ archiviert stattdessen.', yes: 'Löschen', danger: true })) return;
   data.beans = data.beans.filter(b => b.id !== editingId);
   for (const t of data.tags) if (t.beanId === editingId) t.beanId = null;
   dlg.close();
@@ -1110,7 +1152,7 @@ $('#view').addEventListener('click', async e => {
 
   if (act === 'add-tag') {
     const n = data.tags.length + 1;
-    const label = prompt('Name der Dose (z. B. „Dose links“):', 'Dose ' + n);
+    const label = await ask({ title: 'Neue Dose', text: 'Der Name ist egal, z. B. „Dose 4“.', input: nextDoseLabel(), yes: 'Anlegen' });
     if (label === null) return;
     let base = label.trim().toLowerCase()
       .replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss')
@@ -1122,15 +1164,16 @@ $('#view').addEventListener('click', async e => {
     return toast('Dose angelegt');
   }
   if (act === 'rename' && tag) {
-    const label = prompt('Neuer Name der Dose:', tag.label);
+    const label = await ask({ title: 'Dose umbenennen', input: tag.label, yes: 'Speichern' });
     if (!label || !label.trim()) return;
     tag.label = label.trim();
     return commit();
   }
   if (act === 'del-tag' && tag) {
-    if (!confirm(`Dose „${tag.label}“ löschen?\nDie Kurzbefehl-Automation für diesen Tag funktioniert danach nicht mehr.`)) return;
+    if (!await ask({ title: `„${tag.label}“ löschen?`, text: 'Die Bohne darin bleibt erhalten. Die Kurzbefehl-Automation für diese Dose kannst du danach in Kurzbefehle löschen.', yes: 'Löschen', danger: true })) return;
     data.tags = data.tags.filter(t => t.id !== tag.id);
-    return commit();
+    commit();
+    return toast('Dose gelöscht');
   }
   if (act === 'copy-app' && tag) {
     const url = appLink(tag.id);
@@ -1204,7 +1247,7 @@ $('#view').addEventListener('change', async e => {
       const parsed = JSON.parse(await f.text());
       if (!Array.isArray(parsed.beans) || !Array.isArray(parsed.tags)) throw new Error('Kein gültiges Backup');
       const imported = normalize(parsed);
-      if (!confirm(`Backup mit ${imported.beans.length} Bohnen und ${imported.tags.length} Dosen einspielen?\nDer aktuelle Stand wird ersetzt.`)) return;
+      if (!await ask({ title: 'Backup einspielen?', text: `${imported.beans.length} Bohnen und ${imported.tags.length} Dosen. Der aktuelle Stand wird ersetzt.`, yes: 'Einspielen', danger: true })) return;
       data = imported;
       commit();
       toast('Backup eingespielt');
@@ -1270,6 +1313,7 @@ function renderTagSheet() {
       <button class="btn primary" data-tact="new">+ Neue Bohne in diese Dose</button>
       ${bean ? `<button class="btn" data-tact="used">${esc(bean.name)} ist aufgebraucht</button>` : ''}
       <button class="btn" data-tact="close">Fertig</button>
+      <button class="btn danger" data-tact="del-tag">Dose löschen</button>
     </div>`;
 }
 function closeTagSheet() {
@@ -1287,7 +1331,7 @@ tagDlg.addEventListener('input', e => {
   renderTagSheet();
   const inp = $('#tagSearch'); inp.focus(); try { inp.setSelectionRange(pos, pos); } catch {}
 });
-tagDlg.addEventListener('click', e => {
+tagDlg.addEventListener('click', async e => {
   const btn = e.target.closest('[data-tact]');
   if (!btn) return;
   const act = btn.dataset.tact;
@@ -1310,9 +1354,15 @@ tagDlg.addEventListener('click', e => {
     return toast(`${tag.label}: ${b ? b.name : ''}`);
   }
   if (act === 'rename') {
-    const label = prompt('Neuer Name der Dose:', tag.label);
+    const label = await ask({ title: 'Dose umbenennen', input: tag.label, yes: 'Speichern' });
     if (!label || !label.trim()) return;
     tag.label = label.trim(); commit(); return renderTagSheet();
+  }
+  if (act === 'del-tag') {
+    if (!await ask({ title: `„${tag.label}“ löschen?`, text: 'Die Bohne darin bleibt erhalten.', yes: 'Löschen', danger: true })) return;
+    data.tags = data.tags.filter(t => t.id !== tag.id);
+    commit(); closeTagSheet();
+    return toast('Dose gelöscht');
   }
   if (act === 'used') {
     const b = data.beans.find(x => x.id === tag.beanId);
