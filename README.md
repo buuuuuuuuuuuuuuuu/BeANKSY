@@ -1,4 +1,4 @@
-# Bohnen – Kaffee-PWA mit NFC-Mitteilung
+# BeANKSY – Kaffeebohnen-PWA mit NFC-Mitteilung
 
 **Ablauf:** iPhone an den NFC-Tag der Dose halten → Mitteilung zeigt sofort:
 
@@ -30,26 +30,26 @@ Der Token ist dein Passwort für die Daten. Er kommt an drei Stellen hin: Cloudf
 ## Schritt 2 – Cloudflare Worker einrichten
 
 1. Kostenloses Konto auf **dash.cloudflare.com** anlegen (falls noch nicht vorhanden).
-2. **KV-Speicher anlegen:** Links unter *Storage & Databases → KV* auf **Create** tippen und den Namen `kaffee` vergeben.
+2. **KV-Speicher anlegen:** Links unter *Storage & Databases → KV* auf **Create** tippen und den Namen `BeANKSY` vergeben.
 3. **Worker anlegen:** *Workers & Pages → Create → Worker*, die Vorlage „Hello World“ wählen und den Namen `kaffee-api` vergeben. Dann auf **Deploy** tippen.
 4. **Code einfügen:** Im Worker auf **Edit code** tippen. Den gesamten Inhalt löschen, `worker/worker.js` hineinkopieren und auf **Deploy** tippen.
 5. **KV verbinden:** Worker → *Settings → Bindings → Add → KV namespace*
-   - Variablenname: `KAFFEE` (genau so, in Großbuchstaben)
-   - Namespace: `kaffee`
+   - Variablenname: `BeANKSY` (genau so geschrieben)
+   - Namespace: `BeANKSY`
 6. **Token hinterlegen:** Worker → *Settings → Variables and Secrets → Add*
    - Typ: **Secret**
    - Name: `TOKEN`
    - Wert: dein Token aus Schritt 1
-7. **Test:** Die Worker-Adresse im Browser öffnen, z. B. `https://kaffee-api.DEINNAME.workers.dev`. Dort muss **„Kaffee-API läuft ☕“** stehen.
+7. **Test:** Die Worker-Adresse im Browser öffnen, z. B. `https://kaffee-api.DEINNAME.workers.dev`. Dort muss **„BeANKSY-API läuft ☕“** stehen.
 
 > Die Adresse des Workers steht oben auf seiner Übersichtsseite. Notier sie dir, du brauchst sie in Schritt 4.
 
 ## Schritt 3 – App auf GitHub Pages veröffentlichen
 
-1. Auf GitHub ein neues Repository anlegen, z. B. `bohnen` (öffentlich).
+1. Auf GitHub ein neues Repository anlegen, z. B. `BeANKSY` (öffentlich).
 2. *Add file → Upload files*: den **Inhalt** des Ordners `pwa/` hochladen, also `index.html`, `manifest.webmanifest`, `sw.js` und den Ordner `icons/`. Danach auf **Commit** tippen.
 3. *Settings → Pages*: Unter *Source* „Deploy from a branch“ wählen, dann Branch `main` und Ordner `/ (root)`, und speichern.
-4. Nach etwa einer Minute ist die App erreichbar unter `https://DEINNAME.github.io/bohnen/`.
+4. Nach etwa einer Minute ist die App erreichbar unter `https://DEINNAME.github.io/BeANKSY/`.
 
 ## Schritt 4 – App aufs iPhone holen und verbinden
 
@@ -96,7 +96,7 @@ Das machst du **einmal pro NFC-Tag**, danach nie wieder.
 - **Offline:** Die App zeigt den zuletzt geladenen Stand auch ohne Netz. Änderungen werden hochgeladen, sobald wieder Netz da ist. Der Punkt ist gelb, solange etwas wartet, und rot bei einem Fehler. Für die Mitteilung braucht das iPhone Netz.
 - **Backup:** Unter *Einstellungen → Exportieren* erzeugst du eine JSON-Datei, die du über *Importieren* wieder einspielen kannst.
 - **Token wechseln** (z. B. wenn ein Screenshot mit URL herumging): Neuen Token in Cloudflare unter `TOKEN` eintragen, dann in der App unter Einstellungen und neu in jede Kurzbefehl-Automation.
-- **App-Updates:** Nach Änderungen an den Dateien in `sw.js` die Zeile `const CACHE = 'bohnen-v1'` hochzählen (`v2`, `v3` …), damit das iPhone die neue Version lädt.
+- **App-Updates:** Nach Änderungen an den Dateien in `sw.js` die Zeile `const CACHE = 'beanksy-v2'` hochzählen (`v3`, `v4` …), damit das iPhone die neue Version lädt.
 - **Kosten:** Der Free-Plan von Cloudflare reicht weit. Jeder NFC-Scan ist ein Lesezugriff, jede Änderung ein Schreibzugriff.
 
 ## Schnittstelle (für später)
