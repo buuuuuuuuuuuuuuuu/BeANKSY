@@ -12,7 +12,7 @@ Ethiopia Guji
 Röster, Röstdatum, Notiz und die Zahl der Bezüge siehst du in der App, wenn du die Bohne aufklappst.
 
 - **App:** https://buuuuuuuuuuuuuuuu.github.io/BeANKSY/
-- **Aktuelle Version:** 2.1 (steht auch ganz unten in der App)
+- **Aktuelle Version:** 2.2 (steht auch ganz unten in der App)
 
 ---
 
@@ -123,7 +123,7 @@ Das machst du **einmal pro NFC-Tag**, danach nie wieder.
 
 - **Version hochzählen:** Bei jeder Änderung trägst du an drei Stellen dieselbe neue Nummer ein: `APP_VERSION` in `index.html`, `version.json` und `CACHE` in `sw.js` (z. B. `1.5` → `1.6`). Nur dann lädt das iPhone die neue Version und zeigt den Hinweis „Neu laden“.
 - **Worker geändert?** Den neuen Code musst du von Hand bei Cloudflare einfügen (*Edit code → Deploy*). GitHub aktualisiert den Worker nicht automatisch.
-- **Gespeichert im Browser** (`localStorage`): `beanksy.data` (Bohnen und Dosen), `beanksy.cfg` (Worker-Adresse und Token), `beanksy.uses` (Zähler), `beanksy.sort`, `beanksy.theme`.
+- **Gespeichert im Browser** (`localStorage`): `beanksy.data` (Bohnen und Dosen), `beanksy.cfg` (Worker-Adresse und Token), `beanksy.uses` (Zähler), `beanksy.lastScan` (letzter Scan über den App-Link `#/tag/…`), `beanksy.sort`, `beanksy.theme`.
 
 ### Datenmodell
 
@@ -138,7 +138,7 @@ Das machst du **einmal pro NFC-Tag**, danach nie wieder.
 }
 ```
 
-Es wird immer der ganze Stand synchronisiert, der neuere `updatedAt` gewinnt. Die Bezüge liegen getrennt im KV-Schlüssel `uses` als `{ "<bohnen-id>": { "n": 12, "last": 1763740000000 } }`, damit der Sync sie nie überschreibt.
+Es wird immer der ganze Stand synchronisiert, der neuere `updatedAt` gewinnt. Die Bezüge liegen getrennt im KV-Schlüssel `uses` als `{ "<bohnen-id>": { "n": 12, "last": 1763740000000 }, "_last": { "tag": "dose-2", "bean": "<bohnen-id>", "at": 1763740000000 } }` (`_last` ist die zuletzt gescannte Dose für die große Kachel), damit der Sync sie nie überschreibt.
 
 ### Schnittstelle des Workers
 
@@ -150,12 +150,13 @@ Alle Aufrufe außer `GET /` brauchen den Token, entweder als Header `Authorizati
 | `GET /data` | Alle Daten als JSON |
 | `PUT /data` | Alle Daten speichern |
 | `GET /n/<dose-id>` | Mitteilungstext (Name, Gramm, Mahlgrad), zählt den Scan als Bezug |
-| `GET /uses` | Bezüge pro Bohne |
+| `GET /uses` | Bezüge pro Bohne und zuletzt gescannte Dose |
 
 ## Versionen
 
 | Version | Datum | Änderungen |
 |---|---|---|
+| 2.2 | 21.11.2026 | Große Kachel zeigt immer die zuletzt gescannte Dose (Worker merkt sich den letzten Scan, App lädt alle 20 s nach; neuer Worker-Code nötig) |
 | 2.1 | 21.11.2026 | Schablonen-Logo im Header und (dunkel) oben rechts in der großen Kachel |
 | 2.0 | 21.11.2026 | Neues App-Icon „Schablone“: gesprühte Kaffeebohne im Street-Art-Stil |
 | 1.9 | 21.11.2026 | Skala: größere Grammzahl in den kleinen Kacheln |

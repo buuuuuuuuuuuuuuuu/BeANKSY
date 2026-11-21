@@ -10,7 +10,8 @@
  *   GET  /data        -> kompletter Datenstand als JSON
  *   PUT  /data        -> kompletten Datenstand speichern (JSON)
  *   GET  /n/<dose-id> -> Klartext für die iPhone-Mitteilung (zählt den Scan als Bezug)
- *   GET  /uses        -> Bezüge pro Bohne als JSON { <bohnen-id>: { n, last } }
+ *   GET  /uses        -> Bezüge pro Bohne als JSON { <bohnen-id>: { n, last }, _last: { tag, bean, at } }
+ *                        (_last = zuletzt gescannte Dose, für die große Kachel in der App)
  *
  * Token wahlweise als Header  "Authorization: Bearer <TOKEN>"
  * oder als Parameter          "?k=<TOKEN>"  (praktisch für Kurzbefehle).
@@ -148,7 +149,9 @@ export default {
       if (bean) {
         const uses = await loadUses(env);
         const u = uses[bean.id] || { n: 0, last: 0 };
-        uses[bean.id] = { n: u.n + 1, last: Date.now() };
+        const now = Date.now();
+        uses[bean.id] = { n: u.n + 1, last: now };
+        uses._last = { tag: tag.id, bean: bean.id, at: now };
         await env.BeANKSY.put(KEY_USES, JSON.stringify(uses));
       }
       return text(notificationText(data, m[1]));

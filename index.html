@@ -576,7 +576,7 @@ function schedulePush() {
 
 /* ---------- Version & Update-Hinweis ---------- */
 // Bei jedem Update hier, in version.json und in sw.js (CACHE) dieselbe Nummer eintragen.
-const APP_VERSION = '2.1';
+const APP_VERSION = '2.2';
 $('#appVersion').textContent = `BeANKSY · Version ${APP_VERSION}`;
 async function checkVersion() {
   try {
@@ -641,7 +641,7 @@ function sortBeans(list) {
 async function pull() {
   if (!hasSync()) { setSync('', 'Nur lokal gespeichert'); return; }
   if (syncing) return;
-  if (dirty) return push(); // lokale Änderungen zuerst hochladen
+  if (dirty) { await push(); return pullUses(); } // lokale Änderungen zuerst hochladen
   try {
     setSync('pending', 'Lade …');
     const remote = normalize(await api('/data'));
@@ -784,14 +784,38 @@ function relTime(ms) {
   const d = Math.round(h / 24);
   return d === 1 ? 'gestern' : `vor ${d} Tagen`;
 }
+/** Letzter Dosen-Scan: vom Worker (uses._last) oder lokal über den Link #/tag/<dose>; der neuere gewinnt. */
+function lastScan() {
+  const cands = [];
+  const w = uses && uses._last;
+  if (w && w.tag) cands.push({ tag: String(w.tag), at: Number(w.at) || 0 });
+  const l = readJSON('beanksy.lastScan', null);
+  if (l && l.tag) cands.push({ tag: String(l.tag), at: Number(l.at) || 0 });
+  return cands.sort((a, b) => b.at - a.at)[0] || null;
+}
+function noteLocalScan() {
+  const r = route();
+  if (r.name === 'tag') writeJSON('beanksy.lastScan', { tag: r.id, at: Date.now() });
+}
 function heroHtml(active) {
-  let bean = null, last = 0;
-  for (const b of active) { const l = Number(uses[b.id] && uses[b.id].last) || 0; if (l > last) { last = l; bean = b; } }
+  let bean = null, last = 0, tag = null;
+  // 1. Die zuletzt gescannte Dose und die Bohne, die gerade darin ist
+  const ls = lastScan();
+  if (ls) {
+    tag = data.tags.find(t => t.id === ls.tag) || null;
+    const b = tag && active.find(x => x.id === tag.beanId);
+    if (b) { bean = b; last = ls.at; }
+  }
+  // 2. Älterer Worker ohne _last: Bohne mit dem jüngsten Bezug
+  if (!bean) {
+    tag = null;
+    for (const b of active) { const l = Number(uses[b.id] && uses[b.id].last) || 0; if (l > last) { last = l; bean = b; } }
+  }
   const scanned = !!bean;
   if (!bean) bean = active.slice().sort((a, b) => b.createdAt - a.createdAt)[0];
   recentId = scanned ? bean.id : null;
   if (!bean) return '';
-  const tag = tagsOfBean(bean.id)[0];
+  if (!tag) tag = tagsOfBean(bean.id)[0];
   const kicker = scanned ? ['Zuletzt gescannt', tag && tag.label, relTime(last)].filter(Boolean).map(esc).join(' · ') : 'Neueste Bohne';
   const age = daysSince(bean.roastDate);
   const third = age !== null && age >= 0 ? ['Röstung', `${age} T.`] : useCount(bean.id) ? ['Bezüge', String(useCount(bean.id))] : null;
@@ -1142,7 +1166,7 @@ function handleTagRoute() {
   else { expanded.add(bean.id); highlightId = bean.id; }
 }
 
-window.addEventListener('hashchange', () => { handleTagRoute(); render(); scrollToHighlight(); });
+window.addEventListener('hashchange', () => { noteLocalScan(); handleTagRoute(); render(); scrollToHighlight(); });
 function scrollToHighlight() {
   if (!highlightId) return;
   const el = document.querySelector(`.bean[data-id="${CSS.escape(highlightId)}"]`);
@@ -1152,8 +1176,12 @@ function scrollToHighlight() {
 /* ---------- Start ---------- */
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { pull(); checkVersion(); } });
 window.addEventListener('online', pull);
+window.addEventListener('pageshow', e => { if (e.persisted) pull(); });
+// Solange die App offen ist: Scans regelmäßig nachladen, damit die große Kachel aktuell bleibt
+setInterval(() => { if (document.visibilityState === 'visible' && hasSync()) pullUses(); }, 20000);
 
 syncThemeColor();
+noteLocalScan();
 handleTagRoute();
 render();
 scrollToHighlight();
