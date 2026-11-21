@@ -83,7 +83,6 @@
   [data-look="dark"] body { background: radial-gradient(120% 50% at 50% 0%, #22140d 0%, var(--bg) 60%) fixed, var(--bg); }
   button, input, select, textarea { font: inherit; color: inherit; }
   button { cursor: pointer; }
-  .mono { font-family: var(--f-num); }
 
   /* Kopfzeile */
   header {
@@ -346,7 +345,6 @@
   .scan-badge { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); margin-bottom: 6px; }
   .scan-badge i { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
   /* Eigene Rückfrage statt confirm()/prompt(), die in der Home-Bildschirm-App nicht zuverlässig erscheinen */
-  #askDialog { z-index: 60; }
   .ask { padding: 20px 18px calc(20px + var(--safe-bottom)); }
   .ask p { white-space: pre-line; }
   .ask input[hidden] { display: none; }
@@ -494,6 +492,7 @@ try {
   }
 } catch {}
 const EMPTY = () => ({ version: 1, updatedAt: 0, beans: [], tags: [] });
+const TAG_ID = /^[a-z0-9-]{1,40}$/; // gleiche Regel wie im Worker
 
 function readJSON(key, fallback) {
   try { const v = JSON.parse(localStorage.getItem(key)); return v ?? fallback; } catch { return fallback; }
@@ -535,7 +534,7 @@ function normalize(d) {
     archived: !!b.archived,
     createdAt: Number(b.createdAt) || 0,
   }));
-  out.tags = (Array.isArray(d.tags) ? d.tags : []).filter(t => t && /^[a-z0-9-]{1,40}$/.test(t.id)).map(t => ({
+  out.tags = (Array.isArray(d.tags) ? d.tags : []).filter(t => t && TAG_ID.test(t.id)).map(t => ({
     id: t.id, label: t.label ? String(t.label) : t.id, beanId: t.beanId || null,
   }));
   return out;
@@ -632,7 +631,7 @@ function schedulePush() {
 
 /* ---------- Version & Update-Hinweis ---------- */
 // Bei jedem Update hier, in version.json und in sw.js (CACHE) dieselbe Nummer eintragen.
-const APP_VERSION = '2.6';
+const APP_VERSION = '2.7';
 $('#appVersion').textContent = `BeANKSY · Version ${APP_VERSION}`;
 async function checkVersion() {
   try {
@@ -850,15 +849,22 @@ function lastScan() {
   if (l && l.tag) cands.push({ tag: String(l.tag), at: Number(l.at) || 0 });
   return cands.sort((a, b) => b.at - a.at)[0] || null;
 }
-function noteLocalScan() {
+/** Ein Dosen-Link (#/tag/<dose>) wird genau einmal verarbeitet: Scan merken und zählen, dann die Adresse auf #/ zurücksetzen.
+    So zählt Neuladen oder ein von Safari wiederhergestellter Tab nicht noch einmal, und der nächste Scan derselben Dose kommt sicher an. */
+let pendingTag = null;
+function takeScan() {
   const r = route();
-  if (r.name !== 'tag') return;
+  if (r.name !== 'tag') return false;
+  pendingTag = r.id;
+  history.replaceState(null, '', location.pathname + location.search + '#/');
+  if (!TAG_ID.test(r.id)) return true;
   writeJSON('beanksy.lastScan', { tag: r.id, at: Date.now() });
   // Scan beim Worker zählen (Bezüge, zuletzt gescannte Dose). So braucht der Kurzbefehl nur „URLs öffnen“.
   if (hasSync()) {
     fetch(`${apiBase()}/n/${encodeURIComponent(r.id)}`, { headers: { Authorization: 'Bearer ' + cfg.token }, cache: 'no-store' })
       .then(() => pullUses()).catch(() => {});
   }
+  return true;
 }
 function heroHtml(active) {
   let bean = null, last = 0, tag = null;
@@ -1001,12 +1007,13 @@ matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => { s
 
 /* ---------- Rückfrage ---------- */
 /** ask({title, text, input, yes, danger}) → Promise: true / eingegebener Text, oder null bei Abbruch */
-function ask({ title, text = '', input = null, yes = 'OK', danger = false }) {
+function ask({ title, text = '', input = null, yes = 'OK', danger = false, maxlength = 40 }) {
   const d = $('#askDialog'), inp = $('#askInput');
   $('#askTitle').textContent = title;
   $('#askText').textContent = text;
   $('#askText').hidden = !text;
   inp.hidden = input === null;
+  inp.maxLength = maxlength;
   inp.value = input ?? '';
   $('#askYes').textContent = yes;
   $('#askYes').classList.toggle('danger', danger);
@@ -1178,13 +1185,13 @@ $('#view').addEventListener('click', async e => {
   if (act === 'copy-app' && tag) {
     const url = appLink(tag.id);
     try { await navigator.clipboard.writeText(url); toast('App-Link kopiert'); }
-    catch { prompt('App-Link kopieren:', url); }
+    catch { await ask({ title: 'App-Link kopieren', text: 'Das Kopieren hat nicht geklappt. Markiere den Link und kopiere ihn von Hand.', input: url, maxlength: 2000 }); }
     return;
   }
   if (act === 'copy-url' && tag) {
     const url = `${apiBase()}/n/${tag.id}?k=${encodeURIComponent(cfg.token)}`;
     try { await navigator.clipboard.writeText(url); toast('URL kopiert'); }
-    catch { prompt('URL kopieren:', url); }
+    catch { await ask({ title: 'URL kopieren', text: 'Das Kopieren hat nicht geklappt. Markiere die URL und kopiere sie von Hand.', input: url, maxlength: 2000 }); }
     return;
   }
 
@@ -1281,6 +1288,14 @@ function renderTagSheet() {
   const id = tagSheetId;
   const tag = data.tags.find(t => t.id === id);
   const el = $('#tagSheet');
+  if (!tag && !TAG_ID.test(id)) {
+    el.innerHTML = `
+      <div class="tag-k"><i></i>Unbekannter Link</div>
+      <div class="tag-title"><h2>Diese Dosen-ID passt nicht</h2></div>
+      <p class="muted">Der Kurzbefehl hat <code>${esc(id)}</code> geschickt. Eine Dosen-ID darf nur kleine Buchstaben, Ziffern und Bindestriche enthalten. Kopiere den Link am besten neu unter <b>Dosen → Link für Kurzbefehl kopieren</b>.</p>
+      <div class="tag-actions" style="margin-top:16px"><button class="btn" data-tact="close">Schließen</button></div>`;
+    return;
+  }
   if (!tag) {
     el.innerHTML = `
       <div class="tag-k"><i></i>Neue Dose gescannt</div>
@@ -1319,10 +1334,7 @@ function renderTagSheet() {
 function closeTagSheet() {
   if (tagDlg.open) tagDlg.close();
 }
-tagDlg.addEventListener('close', () => {
-  tagSheetId = null;
-  if (route().name === 'tag') location.hash = '#/';
-});
+tagDlg.addEventListener('close', () => { if (!tagDlg.open) tagSheetId = null; }); // Ereignis kommt verzögert: nicht löschen, wenn die Dose schon wieder offen ist
 tagDlg.addEventListener('click', e => { if (e.target === tagDlg) closeTagSheet(); });
 tagDlg.addEventListener('input', e => {
   if (e.target.id !== 'tagSearch') return;
@@ -1338,6 +1350,7 @@ tagDlg.addEventListener('click', async e => {
   const tag = data.tags.find(t => t.id === tagSheetId);
   if (act === 'close') return closeTagSheet();
   if (act === 'create') {
+    if (typeof tagSheetId !== 'string' || !TAG_ID.test(tagSheetId) || data.tags.some(t => t.id === tagSheetId)) return closeTagSheet();
     const label = ($('#newTagLabel').value || '').trim() || nextDoseLabel();
     data.tags.push({ id: tagSheetId, label, beanId: null });
     commit(); renderTagSheet();
@@ -1380,16 +1393,21 @@ tagDlg.addEventListener('click', async e => {
 
 /* ---------- Deep-Link #/tag/<id> ---------- */
 function handleTagRoute() {
-  const r = route();
-  if (r.name !== 'tag') { highlightId = null; return; }
-  const tag = data.tags.find(t => t.id === r.id);
-  const bean = tag && data.beans.find(b => b.id === tag.beanId && !b.archived);
+  const id = pendingTag;
+  if (!id) { if (tagSheetId && tagDlg.open) renderTagSheet(); return; } // neue Daten vom Worker: offene Dose aktualisieren
   if (!data.updatedAt && hasSync()) return; // Daten kommen gleich vom Worker
-  if (bean) { expanded.add(bean.id); highlightId = bean.id; return; } // direkt in die Detailkachel
-  if (tagSheetId === r.id && tagDlg.open) renderTagSheet(); else openTagSheet(r.id);
+  pendingTag = null;
+  const tag = data.tags.find(t => t.id === id);
+  const bean = tag && data.beans.find(b => b.id === tag.beanId && !b.archived);
+  if (bean) { if (tagDlg.open) closeTagSheet(); expanded.add(bean.id); highlightId = bean.id; return; } // direkt in die Detailkachel
+  if (tagSheetId === id && tagDlg.open) renderTagSheet(); else openTagSheet(id);
 }
 
-window.addEventListener('hashchange', () => { cfgFromLink(); noteLocalScan(); handleTagRoute(); render(); scrollToHighlight(); });
+window.addEventListener('hashchange', () => {
+  cfgFromLink();
+  if (!takeScan()) highlightId = null;
+  handleTagRoute(); render(); scrollToHighlight();
+});
 function scrollToHighlight() {
   if (!highlightId) return;
   const el = document.querySelector(`.bean[data-id="${CSS.escape(highlightId)}"]`);
@@ -1404,7 +1422,7 @@ window.addEventListener('pageshow', e => { if (e.persisted) pull(); });
 setInterval(() => { if (document.visibilityState === 'visible' && hasSync()) pullUses(); }, 20000);
 
 syncThemeColor();
-noteLocalScan();
+takeScan();
 handleTagRoute();
 render();
 scrollToHighlight();

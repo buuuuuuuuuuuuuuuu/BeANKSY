@@ -5,7 +5,7 @@ Persönliche Kaffeebohnen-App fürs iPhone, abgestimmt auf die Mühle DF54.
 **Ablauf:** iPhone an den NFC-Tag der Dose halten. BeANKSY öffnet sich direkt mit der aufgeklappten Kachel der Bohne in dieser Dose: Name, Gramm und Mahlgrad groß, dazu Röster, Röstdatum, Notiz und Bezüge. Dort kannst du auch die Bohne in der Dose wechseln.
 
 - **App:** https://buuuuuuuuuuuuuuuu.github.io/BeANKSY/
-- **Aktuelle Version:** 2.6 (steht auch ganz unten in der App)
+- **Aktuelle Version:** 2.7 (steht auch ganz unten in der App)
 
 ---
 
@@ -154,6 +154,7 @@ Alle Aufrufe außer `GET /` brauchen den Token, entweder als Header `Authorizati
 
 | Version | Datum | Änderungen |
 |---|---|---|
+| 2.7 | 21.11.2026 | Fehlerkorrekturen aus dem Code-Check: Neuladen oder ein wiederhergestellter Safari-Tab zählt keinen zweiten Scan mehr, ein Dosen-Link mit ungültiger ID kann den Sync nicht mehr blockieren, eigener Dialog statt Systemdialog beim Kopieren, der Offline-Speicher merkt sich keine Fehlerseiten mehr |
 | 2.6 | 21.11.2026 | Löschen und Umbenennen von Dosen (und Bohnen) mit eigener Rückfrage statt Systemdialog, der auf dem iPhone nicht zuverlässig kam; „Dose löschen“ auch in der Dosen-Ansicht nach dem Scan |
 | 2.5 | 21.11.2026 | Aufgeklappte Kachel rutscht automatisch nach oben unter die Kopfzeile |
 | 2.4 | 21.11.2026 | Scan landet direkt in der aufgeklappten Bohnen-Kachel, dort „Bohne in Dose wechseln“; Kurzbefehl braucht nur noch „URLs öffnen“, die App zählt den Scan selbst |

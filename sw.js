@@ -1,6 +1,6 @@
 // Service Worker: hält die App offline verfügbar.
 // Bei Änderungen an der App die Versionsnummer erhöhen (gleich wie APP_VERSION in index.html und version.json).
-const CACHE = 'beanksy-2.6';
+const CACHE = 'beanksy-2.7';
 const SHELL = [
   './',
   './index.html',
@@ -45,8 +45,11 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       fetch(req)
         .then((res) => {
-          const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put('./index.html', copy));
+          // Nur eine echte App-Seite merken, keine Fehlerseite (z. B. 404 bei einer falschen Adresse)
+          if (res.ok) {
+            const copy = res.clone();
+            caches.open(CACHE).then((c) => c.put('./index.html', copy));
+          }
           return res;
         })
         .catch(() => caches.match('./index.html'))
