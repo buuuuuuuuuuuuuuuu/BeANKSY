@@ -119,14 +119,10 @@
   }
   .banner a { color: var(--accent); }
 
-  /* Begrüßung (nur dunkel) */
-  .greet { display: none; }
-  [data-look="dark"] .greet { display: block; font-family: var(--f-name); font-size: 36px; line-height: 1.02; margin: 6px 2px 18px; }
-  .greet i { color: var(--accent); }
 
   /* Große Kachel: zuletzt gescannt */
   .hero { display: block; width: 100%; text-align: left; border: 0; padding: 0; color: inherit; background: none; margin-bottom: 18px; position: relative; overflow: hidden; }
-  .hero[hidden], .greet[hidden] { display: none !important; }
+  .hero[hidden] { display: none !important; }
   .bean { scroll-margin-top: 80px; }
   .hero-k { display: flex; align-items: center; gap: 8px; font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
   .hero-k i { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); flex: none; }
@@ -554,7 +550,7 @@ function schedulePush() {
 
 /* ---------- Version & Update-Hinweis ---------- */
 // Bei jedem Update hier, in version.json und in sw.js (CACHE) dieselbe Nummer eintragen.
-const APP_VERSION = '1.7';
+const APP_VERSION = '1.8';
 $('#appVersion').textContent = `BeANKSY · Version ${APP_VERSION}`;
 async function checkVersion() {
   try {
@@ -606,8 +602,6 @@ function applySearch() {
   }
   const hero = $('#hero');
   if (hero) hero.hidden = words.length > 0;
-  const greet = $('#view .greet');
-  if (greet) greet.hidden = words.length > 0;
   const none = $('#noHits');
   if (none) { none.hidden = !(words.length && shown === 0); $('#noHitsQ').textContent = searchQuery; }
 }
@@ -764,13 +758,6 @@ function relTime(ms) {
   const d = Math.round(h / 24);
   return d === 1 ? 'gestern' : `vor ${d} Tagen`;
 }
-function greeting() {
-  const h = new Date().getHours();
-  if (h < 5) return 'Späte Runde.';
-  if (h < 11) return 'Guten Morgen.';
-  if (h < 17) return 'Guten Tag.';
-  return 'Guten Abend.';
-}
 function heroHtml(active) {
   let bean = null, last = 0;
   for (const b of active) { const l = Number(uses[b.id] && uses[b.id].last) || 0; if (l > last) { last = l; bean = b; } }
@@ -803,7 +790,6 @@ function renderList() {
   if (!active.length) {
     html += `<div class="empty"><div class="big">☕</div><p>Noch keine Bohnen.<br>Tippe auf <b>+</b>, um die erste anzulegen.</p></div>`;
   } else {
-    html += `<div class="greet">${greeting()}<br><i>Was mahlen wir?</i></div>`;
     html += heroHtml(active);
     html += `<div class="tools"><div class="search"><input id="search" type="search" placeholder="Bohne suchen …" value="${esc(searchQuery)}" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="search" aria-label="Bohnen suchen"></div>`;
     html += `<div class="seg sort" role="group" aria-label="Sortierung">
