@@ -12,7 +12,7 @@ Ethiopia Guji
 Röster, Röstdatum, Notiz und die Zahl der Bezüge siehst du in der App, wenn du die Bohne aufklappst.
 
 - **App:** https://buuuuuuuuuuuuuuuu.github.io/BeANKSY/
-- **Aktuelle Version:** 1.8 (steht auch ganz unten in der App)
+- **Aktuelle Version:** 1.9 (steht auch ganz unten in der App)
 
 ---
 
@@ -156,6 +156,7 @@ Alle Aufrufe außer `GET /` brauchen den Token, entweder als Header `Authorizati
 
 | Version | Datum | Änderungen |
 |---|---|---|
+| 1.9 | 21.11.2026 | Skala: größere Grammzahl in den kleinen Kacheln |
 | 1.8 | 21.11.2026 | Begrüßungszeile im dunklen Look entfernt |
 | 1.7 | 21.11.2026 | Nachtröstung: kräftigere Ziffern und größere Grammzahl in den kleinen Kacheln |
 | 1.6 | 21.11.2026 | Neues Design: „Skala“ (hell) und „Nachtröstung“ (dunkel), große Kachel für die zuletzt gescannte Bohne, Lineal bzw. Drehregler für den Mahlgrad |

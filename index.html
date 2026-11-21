@@ -205,7 +205,10 @@
   .bean.hl .mini-scale i, .bean.recent .mini-scale i { background: var(--accent); }
 
   [data-look="light"] .bean-no, [data-look="light"] .mini-scale { display: block; }
-  [data-look="light"] .bean-nums .d { font-size: 12.5px; }
+  /* Gramm sitzt rechts oben neben „Mahlgrad“, damit auch „10,2“ Platz hat */
+  [data-look="light"] .bean-nums { position: relative; }
+  [data-look="light"] .bean-nums .d { position: absolute; right: 0; top: -8px; font-size: 12px; letter-spacing: -.02em; }
+  [data-look="light"] .bean-nums .d b { font-size: 22px; font-weight: 400; letter-spacing: -.06em; }
   [data-look="dark"] .sw { display: block; }
   [data-look="dark"] .bean { background: color-mix(in srgb, var(--surface) 85%, transparent); }
   [data-look="dark"] .bean-name { font-size: 22px; font-weight: 400; letter-spacing: 0; line-height: 1.02; min-height: 2.04em; }
@@ -550,7 +553,7 @@ function schedulePush() {
 
 /* ---------- Version & Update-Hinweis ---------- */
 // Bei jedem Update hier, in version.json und in sw.js (CACHE) dieselbe Nummer eintragen.
-const APP_VERSION = '1.8';
+const APP_VERSION = '1.9';
 $('#appVersion').textContent = `BeANKSY · Version ${APP_VERSION}`;
 async function checkVersion() {
   try {
