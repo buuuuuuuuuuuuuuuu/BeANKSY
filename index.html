@@ -614,7 +614,7 @@ function schedulePush() {
 
 /* ---------- Version & Update-Hinweis ---------- */
 // Bei jedem Update hier, in version.json und in sw.js (CACHE) dieselbe Nummer eintragen.
-const APP_VERSION = '2.3';
+const APP_VERSION = '2.4';
 $('#appVersion').textContent = `BeANKSY · Version ${APP_VERSION}`;
 async function checkVersion() {
   try {
@@ -802,6 +802,7 @@ function beanCard(b, i) {
       </div>`}
       <dl>${rows.map(([k, v, w]) => `<div${w ? ' class="w"' : ''}><dt>${k}</dt><dd>${v}</dd></div>`).join('')}</dl>
       <div class="row">
+        ${!b.archived && tags.length ? tags.map(t => `<button class="btn small swap" data-act="swap" data-tag="${esc(t.id)}">Bohne in ${esc(t.label)} wechseln</button>`).join('') : ''}
         <button class="btn small" data-act="edit">Bearbeiten</button>
         ${b.archived
           ? '<button class="btn small" data-act="unarchive">Wieder aktivieren</button>'
@@ -833,7 +834,13 @@ function lastScan() {
 }
 function noteLocalScan() {
   const r = route();
-  if (r.name === 'tag') writeJSON('beanksy.lastScan', { tag: r.id, at: Date.now() });
+  if (r.name !== 'tag') return;
+  writeJSON('beanksy.lastScan', { tag: r.id, at: Date.now() });
+  // Scan beim Worker zählen (Bezüge, zuletzt gescannte Dose). So braucht der Kurzbefehl nur „URLs öffnen“.
+  if (hasSync()) {
+    fetch(`${apiBase()}/n/${encodeURIComponent(r.id)}`, { headers: { Authorization: 'Bearer ' + cfg.token }, cache: 'no-store' })
+      .then(() => pullUses()).catch(() => {});
+  }
 }
 function heroHtml(active) {
   let bean = null, last = 0, tag = null;
@@ -899,7 +906,7 @@ function renderTags() {
   const options = sel => `<option value="">— keine Bohne —</option>` +
     activeBeans.map(b => `<option value="${esc(b.id)}"${b.id === sel ? ' selected' : ''}>${esc(b.name)}</option>`).join('');
   const ls = lastScan();
-  let html = `<p class="muted">Jede Dose bekommt einen NFC-Tag. Du musst die Dosen nicht unterscheiden können: Scanne einfach die Dose in deiner Hand und tippe im Menü auf „Dose bearbeiten“. Die zuletzt gescannte Dose ist hier markiert.</p>`;
+  let html = `<p class="muted">Jede Dose bekommt einen NFC-Tag. Du musst die Dosen nicht unterscheiden können: Scanne einfach die Dose in deiner Hand, dann öffnet sich die Bohne darin. Die zuletzt gescannte Dose ist hier markiert.</p>`;
   if (!data.tags.length) html += `<div class="empty"><div class="big">📡</div><p>Noch keine Dosen angelegt.</p></div>`;
   for (const t of data.tags) {
     const url = hasSync() ? `${apiBase()}/n/${t.id}?k=${encodeURIComponent(cfg.token)}` : '';
@@ -912,7 +919,7 @@ function renderTags() {
       <label>Bohne in dieser Dose</label>
       <select data-act="assign">${options(t.beanId)}</select>
       <div class="row" style="margin-top:12px">
-        ${url ? '<button class="btn small" data-act="copy-url">1 · Mitteilungs-URL kopieren</button><button class="btn small" data-act="copy-app">2 · App-Link kopieren</button>' : '<span class="muted">Für die Kurzbefehl-Links zuerst den Sync einrichten.</span>'}
+        ${url ? '<button class="btn small primary" data-act="copy-app">Link für Kurzbefehl kopieren</button><button class="btn small" data-act="copy-url">Mitteilungs-URL (optional)</button>' : '<span class="muted">Für die Kurzbefehl-Links zuerst den Sync einrichten.</span>'}
         <button class="btn small" data-act="rename">Umbenennen</button>
         <button class="btn small danger" data-act="del-tag">Löschen</button>
       </div>
@@ -1083,6 +1090,7 @@ $('#view').addEventListener('click', async e => {
     bean[field] = Math.max(0, round((bean[field] || 0) + delta));
     return commit();
   }
+  if (act === 'swap') return openTagSheet(btn.dataset.tag, false);
   if (act === 'edit' && bean) return openForm(bean);
   if (act === 'archive' && bean) {
     bean.archived = true;
@@ -1203,7 +1211,7 @@ $('#view').addEventListener('change', async e => {
 
 /* ---------- Dose nach dem Scan (#/tag/<dose>) ---------- */
 const tagDlg = $('#tagDialog');
-let tagSheetId = null, tagSheetQuery = '';
+let tagSheetId = null, tagSheetQuery = '', tagSheetScanned = true;
 function appLink(tagId) {
   const base = location.origin + location.pathname;
   const q = hasSync() ? `?api=${encodeURIComponent(apiBase())}&k=${encodeURIComponent(cfg.token)}` : '';
@@ -1214,8 +1222,8 @@ function nextDoseLabel() {
   while (data.tags.some(t => t.label === 'Dose ' + n)) n++;
   return 'Dose ' + n;
 }
-function openTagSheet(id) {
-  tagSheetId = id; tagSheetQuery = '';
+function openTagSheet(id, scanned = true) {
+  tagSheetId = id; tagSheetQuery = ''; tagSheetScanned = scanned;
   renderTagSheet();
   if (!tagDlg.open) tagDlg.showModal();
 }
@@ -1240,7 +1248,7 @@ function renderTagSheet() {
   const words = fold(tagSheetQuery).split(/\s+/).filter(Boolean);
   const list = sortBeans(data.beans.filter(b => !b.archived)).filter(b => words.every(w => fold(b.name + ' ' + b.roaster).includes(w)));
   el.innerHTML = `
-    <div class="tag-k"><i></i>Gescannte Dose</div>
+    <div class="tag-k"><i></i>${tagSheetScanned ? 'Gescannte Dose' : 'Bohne wechseln'}</div>
     <div class="tag-title"><h2>${esc(tag.label)}</h2><button class="btn small" data-tact="rename">Umbenennen</button></div>
     <div class="tag-now">
       <small>Drin ist gerade</small>
@@ -1287,9 +1295,10 @@ tagDlg.addEventListener('click', e => {
   if (!tag) return;
   if (act === 'pick') {
     const id = btn.dataset.id;
+    if (tag.beanId && tag.beanId !== id) expanded.delete(tag.beanId); // alte Bohne zuklappen
     for (const t of data.tags) { if (t.id === tag.id) t.beanId = id; else if (t.beanId === id) t.beanId = null; }
     expanded.add(id); highlightId = id;
-    commit(); closeTagSheet();
+    commit(); closeTagSheet(); render(); scrollToHighlight();
     const b = data.beans.find(x => x.id === id);
     return toast(`${tag.label}: ${b ? b.name : ''}`);
   }
@@ -1319,7 +1328,7 @@ function handleTagRoute() {
   const tag = data.tags.find(t => t.id === r.id);
   const bean = tag && data.beans.find(b => b.id === tag.beanId && !b.archived);
   if (!data.updatedAt && hasSync()) return; // Daten kommen gleich vom Worker
-  if (bean) { expanded.add(bean.id); highlightId = bean.id; }
+  if (bean) { expanded.add(bean.id); highlightId = bean.id; return; } // direkt in die Detailkachel
   if (tagSheetId === r.id && tagDlg.open) renderTagSheet(); else openTagSheet(r.id);
 }
 
@@ -1327,7 +1336,7 @@ window.addEventListener('hashchange', () => { cfgFromLink(); noteLocalScan(); ha
 function scrollToHighlight() {
   if (!highlightId) return;
   const el = document.querySelector(`.bean[data-id="${CSS.escape(highlightId)}"]`);
-  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: expanded.has(highlightId) ? 'start' : 'center' });
 }
 
 /* ---------- Start ---------- */
