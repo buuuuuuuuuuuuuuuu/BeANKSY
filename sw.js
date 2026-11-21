@@ -1,6 +1,6 @@
 // Service Worker: hält die App offline verfügbar.
 // Bei Änderungen an der App die Versionsnummer erhöhen (gleich wie APP_VERSION in index.html und version.json).
-const CACHE = 'beanksy-1.3';
+const CACHE = 'beanksy-1.4';
 const SHELL = [
   './',
   './index.html',

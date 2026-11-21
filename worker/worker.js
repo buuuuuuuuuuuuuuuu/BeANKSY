@@ -9,13 +9,15 @@
  *   GET  /            -> "BeANKSY-API läuft" (Funktionstest, ohne Token)
  *   GET  /data        -> kompletter Datenstand als JSON
  *   PUT  /data        -> kompletten Datenstand speichern (JSON)
- *   GET  /n/<dose-id> -> Klartext für die iPhone-Mitteilung
+ *   GET  /n/<dose-id> -> Klartext für die iPhone-Mitteilung (zählt den Scan als Bezug)
+ *   GET  /uses        -> Bezüge pro Bohne als JSON { <bohnen-id>: { n, last } }
  *
  * Token wahlweise als Header  "Authorization: Bearer <TOKEN>"
  * oder als Parameter          "?k=<TOKEN>"  (praktisch für Kurzbefehle).
  */
 
 const KEY = 'data';
+const KEY_USES = 'uses'; // Zähler getrennt von den Daten, damit Sync sie nie überschreibt
 const MAX_BYTES = 512 * 1024; // 512 KB reichen für sehr viele Bohnen
 
 const CORS = {
@@ -91,6 +93,14 @@ async function load(env) {
   }
 }
 
+async function loadUses(env) {
+  try {
+    return JSON.parse((await env.BeANKSY.get(KEY_USES)) || '{}') || {};
+  } catch {
+    return {};
+  }
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -128,9 +138,20 @@ export default {
       return text('Methode nicht erlaubt', 405);
     }
 
+    if (path === '/uses' && request.method === 'GET') return json(await loadUses(env));
+
     const m = path.match(/^\/n\/([a-z0-9-]{1,40})$/);
     if (m && request.method === 'GET') {
-      return text(notificationText(await load(env), m[1]));
+      const data = await load(env);
+      const tag = (data.tags || []).find((t) => t.id === m[1]);
+      const bean = tag && (data.beans || []).find((b) => b.id === tag.beanId && !b.archived);
+      if (bean) {
+        const uses = await loadUses(env);
+        const u = uses[bean.id] || { n: 0, last: 0 };
+        uses[bean.id] = { n: u.n + 1, last: Date.now() };
+        await env.BeANKSY.put(KEY_USES, JSON.stringify(uses));
+      }
+      return text(notificationText(data, m[1]));
     }
 
     return text('Nicht gefunden', 404);
