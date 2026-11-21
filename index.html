@@ -209,6 +209,8 @@
   .dialog-actions .btn { flex: 1; padding: 13px; }
 
   .app-version { text-align: center; color: var(--muted); font-size: 13px; padding: 8px 16px 0; }
+  .seg.sort { margin-bottom: 12px; }
+  .sort-hint { margin: -4px 4px 12px; }
   .update-bar {
     position: fixed; left: 12px; right: 12px; bottom: calc(100px + var(--safe-bottom)); z-index: 40;
     max-width: 616px; margin: 0 auto; display: flex; align-items: center; gap: 12px;
@@ -311,6 +313,8 @@ function writeJSON(key, value) {
 let data = normalize(readJSON(LS_DATA, EMPTY()));
 let dirty = readJSON(LS_DIRTY, false);
 let cfg = Object.assign({ apiUrl: '', token: '' }, readJSON(LS_CFG, {}));
+let uses = readJSON('beanksy.uses', {});          // Bezüge pro Bohne (NFC-Scans), kommt vom Worker
+let sortMode = readJSON('beanksy.sort', 'new');   // new | alpha | uses
 const expanded = new Set();
 let highlightId = null;
 
@@ -424,7 +428,7 @@ function schedulePush() {
 
 /* ---------- Version & Update-Hinweis ---------- */
 // Bei jedem Update hier, in version.json und in sw.js (CACHE) dieselbe Nummer eintragen.
-const APP_VERSION = '1.3';
+const APP_VERSION = '1.4';
 $('#appVersion').textContent = `BeANKSY · Version ${APP_VERSION}`;
 async function checkVersion() {
   try {
@@ -448,6 +452,23 @@ $('#updateBtn').addEventListener('click', async () => {
   location.reload();
 });
 
+async function pullUses() {
+  try {
+    const u = await api('/uses');
+    if (u && typeof u === 'object' && JSON.stringify(u) !== JSON.stringify(uses)) {
+      uses = u; writeJSON('beanksy.uses', uses);
+      if (route().name === 'list') render();
+    }
+  } catch {} // älterer Worker ohne /uses: einfach ohne Zähler weiter
+}
+const useCount = id => (uses[id] && Number(uses[id].n)) || 0;
+function sortBeans(list) {
+  const byName = (a, b) => a.name.localeCompare(b.name, 'de', { sensitivity: 'base' });
+  if (sortMode === 'alpha') return list.sort(byName);
+  if (sortMode === 'uses') return list.sort((a, b) => useCount(b.id) - useCount(a.id) || b.createdAt - a.createdAt);
+  return list.sort((a, b) => b.createdAt - a.createdAt);
+}
+
 async function pull() {
   if (!hasSync()) { setSync('', 'Nur lokal gespeichert'); return; }
   if (syncing) return;
@@ -456,8 +477,9 @@ async function pull() {
     setSync('pending', 'Lade …');
     const remote = normalize(await api('/data'));
     if (remote.updatedAt > data.updatedAt) { data = remote; save(); handleTagRoute(); render(); scrollToHighlight(); }
-    else if (remote.updatedAt < data.updatedAt && data.updatedAt > 0) { dirty = true; save(); return push(); }
+    else if (remote.updatedAt < data.updatedAt && data.updatedAt > 0) { dirty = true; save(); pullUses(); return push(); }
     setSync('ok', 'Synchronisiert');
+    pullUses();
   } catch (e) {
     setSync('error', 'Sync-Fehler: ' + e.message);
   }
@@ -495,6 +517,7 @@ function beanCard(b) {
   if (b.roastDate) rows.push(['Röstdatum', esc(formatDate(b.roastDate)) + (age !== null && age >= 0 ? ` <span class="muted">(vor ${age} ${age === 1 ? 'Tag' : 'Tagen'})</span>` : '')]);
   rows.push(['Dose', tags.length ? tags.map(t => esc(t.label)).join(', ') : '<span class="muted">keine</span>']);
   if (b.notes) rows.push(['Notiz', esc(b.notes)]);
+  if (useCount(b.id)) rows.push(['Bezüge', `${useCount(b.id)} <span class="muted">(per NFC gezählt)</span>`]);
 
   return `
   <article class="bean${open ? ' open' : ''}${highlightId === b.id ? ' hl' : ''}" data-id="${esc(b.id)}">
@@ -524,13 +547,17 @@ function beanCard(b) {
 }
 
 function renderList() {
-  const active = data.beans.filter(b => !b.archived).sort((a, b) => b.createdAt - a.createdAt);
-  const archived = data.beans.filter(b => b.archived).sort((a, b) => b.createdAt - a.createdAt);
+  const active = sortBeans(data.beans.filter(b => !b.archived));
+  const archived = sortBeans(data.beans.filter(b => b.archived));
   let html = '';
   if (!hasSync()) html += `<div class="banner">Sync ist noch nicht eingerichtet, die Daten liegen nur auf diesem Gerät. <a href="#/einstellungen">Jetzt einrichten</a></div>`;
   if (!active.length) {
     html += `<div class="empty"><div class="big">☕</div><p>Noch keine Bohnen.<br>Tippe auf <b>+</b>, um die erste anzulegen.</p></div>`;
   } else {
+    html += `<div class="seg sort" role="group" aria-label="Sortierung">
+      ${[['new', 'Neueste'], ['alpha', 'A–Z'], ['uses', 'Häufigste']].map(([v, l]) => `<button data-act="sort" data-v="${v}" aria-pressed="${sortMode === v}">${l}</button>`).join('')}
+    </div>`;
+    if (sortMode === 'uses' && !active.some(b => useCount(b.id))) html += `<p class="muted sort-hint">Noch keine Bezüge gezählt. Jeder NFC-Scan an einer Dose zählt als ein Bezug${hasSync() ? '' : ' (dafür muss der Sync eingerichtet sein)'}.</p>`;
     html += `<div class="grid">${active.map(beanCard).join('')}</div>`;
   }
   if (archived.length) {
@@ -697,6 +724,7 @@ $('#view').addEventListener('click', async e => {
   const tagEl = btn.closest('[data-tag]');
   const tag = tagEl ? data.tags.find(t => t.id === tagEl.dataset.tag) : null;
 
+  if (act === 'sort') { sortMode = btn.dataset.v; writeJSON('beanksy.sort', sortMode); return render(); }
   if (act === 'theme') { applyTheme(btn.dataset.v); return render(); }
   if (act === 'toggle' && bean) {
     expanded.has(bean.id) ? expanded.delete(bean.id) : expanded.add(bean.id);
