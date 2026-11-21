@@ -12,7 +12,7 @@ Ethiopia Guji
 Röster, Röstdatum, Notiz und die Zahl der Bezüge siehst du in der App, wenn du die Bohne aufklappst.
 
 - **App:** https://buuuuuuuuuuuuuuuu.github.io/BeANKSY/
-- **Aktuelle Version:** 1.5 (steht auch ganz unten in der App)
+- **Aktuelle Version:** 1.6 (steht auch ganz unten in der App)
 
 ---
 
@@ -27,7 +27,7 @@ Röster, Röstdatum, Notiz und die Zahl der Bezüge siehst du in der App, wenn d
 | Aufgebraucht | Die Bohne wandert ins Archiv unten in der Liste, und ihre Dose wird frei. Mit *Wieder aktivieren* holst du sie zurück. |
 | Dosen | Jeder NFC-Tag steht für eine Dose. Hier ordnest du einer Dose eine Bohne zu und kopierst die URL für den Kurzbefehl. |
 | Sync | Über deinen Cloudflare Worker. Der Punkt neben dem Titel zeigt den Stand: grün = synchron, gelb = wartet, rot = Fehler, grau = nur lokal. |
-| Darstellung | Graphit/Petrol, hell und dunkel. Unter *Einstellungen → Darstellung* wählst du Auto (folgt dem iPhone), Hell oder Dunkel. |
+| Darstellung | Zwei Looks: Hell heißt „Skala“ (warmes Papier, Mono-Ziffern, Mahlgrad-Lineal, Signal-Orange), Dunkel heißt „Nachtröstung“ (Espresso-Braun, Serifenschrift, runder Mahlgrad-Regler, Crema-Akzent). Oben steht groß die zuletzt per NFC gescannte Bohne. Unter *Einstellungen → Darstellung* wählst du Auto (folgt dem iPhone), Hell oder Dunkel. |
 | Updates | Gibt es eine neuere Version, erscheint unten der Hinweis **Neu laden**. |
 | Backup | *Einstellungen → Exportieren / Importieren* als JSON-Datei. Ein Import ersetzt den aktuellen Stand. |
 | Offline | Die App läuft auch ohne Netz und lädt Änderungen hoch, sobald wieder Netz da ist. Für die NFC-Mitteilung braucht das iPhone Netz. |
@@ -156,6 +156,7 @@ Alle Aufrufe außer `GET /` brauchen den Token, entweder als Header `Authorizati
 
 | Version | Datum | Änderungen |
 |---|---|---|
+| 1.6 | 21.11.2026 | Neues Design: „Skala“ (hell) und „Nachtröstung“ (dunkel), große Kachel für die zuletzt gescannte Bohne, Lineal bzw. Drehregler für den Mahlgrad |
 | 1.5 | 21.11.2026 | Suchfeld mit Live-Filter |
 | 1.4 | 21.11.2026 | Sortierung Neueste/A–Z/Häufigste, der Worker zählt NFC-Scans (neuer Worker-Code nötig) |
 | 1.3 | 21.11.2026 | Versionsanzeige mit Hinweis „Neu laden“, Icon in Petrol |
