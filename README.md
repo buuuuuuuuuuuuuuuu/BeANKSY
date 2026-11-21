@@ -2,17 +2,10 @@
 
 Persönliche Kaffeebohnen-App fürs iPhone, abgestimmt auf die Mühle DF54.
 
-**Ablauf:** iPhone an den NFC-Tag der Dose halten. Sofort erscheint eine Mitteilung:
-
-```
-Ethiopia Guji
-18 g · Mahlgrad 12,5
-```
-
-Röster, Röstdatum, Notiz und die Zahl der Bezüge siehst du in der App, wenn du die Bohne aufklappst.
+**Ablauf:** iPhone an den NFC-Tag der Dose halten. BeANKSY öffnet sich direkt mit der aufgeklappten Kachel der Bohne in dieser Dose: Name, Gramm und Mahlgrad groß, dazu Röster, Röstdatum, Notiz und Bezüge. Dort kannst du auch die Bohne in der Dose wechseln.
 
 - **App:** https://buuuuuuuuuuuuuuuu.github.io/BeANKSY/
-- **Aktuelle Version:** 2.3 (steht auch ganz unten in der App)
+- **Aktuelle Version:** 2.4 (steht auch ganz unten in der App)
 
 ---
 
@@ -25,12 +18,12 @@ Röster, Röstdatum, Notiz und die Zahl der Bezüge siehst du in der App, wenn d
 | Suche | Das Suchfeld filtert die Liste schon beim Tippen. Es sucht in Name, Röster, Notiz und Dose, ohne auf Groß/Klein oder Umlaute zu achten („athiopien“ findet „Äthiopien“). Mehrere Wörter müssen alle passen. |
 | Sortierung | Neueste, A–Z oder Häufigste (nach Zahl der NFC-Scans). Die Auswahl bleibt gespeichert. |
 | Aufgebraucht | Die Bohne wandert ins Archiv unten in der Liste, und ihre Dose wird frei. Mit *Wieder aktivieren* holst du sie zurück. |
-| Dosen | Jeder NFC-Tag steht für eine Dose. Nach dem Scan öffnet „Dose bearbeiten“ genau diese Dose: Bohne wechseln, neue Bohne einfüllen, aufgebraucht markieren. In der Liste ist die zuletzt gescannte Dose markiert, dort kopierst du auch die zwei Links für den Kurzbefehl. |
+| Dosen | Jeder NFC-Tag steht für eine Dose. Der Scan öffnet die App direkt mit der aufgeklappten Kachel der Bohne in dieser Dose. Dort wechselst du über „Bohne in … wechseln“ die Bohne. In der Dosen-Liste ist die zuletzt gescannte Dose markiert, dort kopierst du auch den Link für den Kurzbefehl. |
 | Sync | Über deinen Cloudflare Worker. Der Punkt neben dem Titel zeigt den Stand: grün = synchron, gelb = wartet, rot = Fehler, grau = nur lokal. |
 | Darstellung | Zwei Looks: Hell heißt „Skala“ (warmes Papier, Mono-Ziffern, Mahlgrad-Lineal, Signal-Orange), Dunkel heißt „Nachtröstung“ (Espresso-Braun, Serifenschrift, runder Mahlgrad-Regler, Crema-Akzent). Oben steht groß die zuletzt per NFC gescannte Bohne. Unter *Einstellungen → Darstellung* wählst du Auto (folgt dem iPhone), Hell oder Dunkel. |
 | Updates | Gibt es eine neuere Version, erscheint unten der Hinweis **Neu laden**. |
 | Backup | *Einstellungen → Exportieren / Importieren* als JSON-Datei. Ein Import ersetzt den aktuellen Stand. |
-| Offline | Die App läuft auch ohne Netz und lädt Änderungen hoch, sobald wieder Netz da ist. Für die NFC-Mitteilung braucht das iPhone Netz. |
+| Offline | Die App läuft auch ohne Netz und lädt Änderungen hoch, sobald wieder Netz da ist. Zum Zählen der Scans braucht das iPhone Netz. |
 
 ## Aufbau
 
@@ -42,7 +35,7 @@ Röster, Röstdatum, Notiz und die Zahl der Bezüge siehst du in der App, wenn d
 | `version.json` | Aktuelle Versionsnummer für den Hinweis „Neu laden“ | GitHub Pages |
 | `worker/worker.js` | Sync-Backend, Mitteilungstext und Zähler für die Bezüge | Cloudflare Workers + KV (Gratis-Tarif) |
 
-Die NFC-Tags liest nicht die App, sondern eine **Kurzbefehl-Automation** auf dem iPhone, denn Safari kann kein Web NFC. Die Automation ruft den Worker auf, und der Worker antwortet mit dem Mitteilungstext.
+Die NFC-Tags liest nicht die App, sondern eine **Kurzbefehl-Automation** auf dem iPhone, denn Safari kann kein Web NFC. Die Automation öffnet den Link der Dose (`#/tag/<dose-id>`), die App zeigt die Bohne und meldet den Scan an den Worker.
 
 ---
 
@@ -87,25 +80,23 @@ Die Dosen müssen äußerlich nicht unterscheidbar sein. Welche Dose welche ist,
 
 ### 6. Kurzbefehl-Automation pro NFC-Tag
 
-Das machst du **einmal pro Dose**, danach nie wieder. Nimm dafür genau **eine** Dose in die Hand und richte sie komplett ein, bevor du die nächste nimmst.
+Das machst du **einmal pro Dose**, danach nie wieder. Nimm genau **eine** Dose in die Hand und richte sie komplett ein, bevor du die nächste nimmst.
 
-1. In der App unter **Dosen** bei der Dose, die du einrichtest, auf **„1 · Mitteilungs-URL kopieren“** tippen.
-2. Die App **Kurzbefehle** öffnen und unten auf **Automation** tippen, dann auf **+** (oben rechts) und **NFC**.
+1. In der App unter **Dosen** bei der Dose, die du einrichtest, auf **„Link für Kurzbefehl kopieren“** tippen.
+2. Die App **Kurzbefehle** öffnen, unten auf **Automation** tippen, dann auf **+** (oben rechts) und **NFC**.
 3. Auf **Scannen** tippen, das iPhone an die Dose in deiner Hand halten und den Tag benennen, z. B. „Dose 1“.
-4. **„Sofort ausführen“** wählen und **„Bei Ausführung benachrichtigen“ ausschalten**. Dann auf **Weiter** tippen.
-5. **Neue leere Automation** wählen.
-6. Die Aktion **„Inhalte von URL abrufen“** hinzufügen und die kopierte URL einfügen. Sie sieht so aus:
-   `https://kaffee-api.DEINNAME.workers.dev/n/dose-1?k=DEINTOKEN`
-7. Die Aktion **„Aus Menü auswählen“** hinzufügen.
-   - Auf den Text **„Auswählen“** (die Aufforderung) tippen, ihn löschen und die Variable **„Inhalte von URL“** einsetzen. So steht oben im Menü die Bohne mit Gramm und Mahlgrad.
-   - Die beiden Menüpunkte umbenennen in **„Passt ☕“** und **„Dose bearbeiten“**.
-8. Zurück in die App wechseln und bei **derselben Dose** auf **„2 · App-Link kopieren“** tippen.
-9. Wieder im Kurzbefehl: Unter dem Menüpunkt **„Dose bearbeiten“** die Aktion **„URLs öffnen“** hinzufügen und den App-Link einfügen. Unter „Passt ☕“ bleibt alles leer.
-10. Auf **Fertig** tippen und testen: Dose scannen, oben stehen Bohne, Gramm und Mahlgrad. „Passt ☕“ schließt das Menü, „Dose bearbeiten“ öffnet die App direkt bei dieser Dose.
+4. **„Sofort ausführen“** wählen und **„Bei Ausführung benachrichtigen“ ausschalten**. Dann auf **Weiter** tippen und **Neue leere Automation** wählen.
+5. Die Aktion **„URLs öffnen“** hinzufügen und den kopierten Link einfügen. Er sieht so aus:
+   `https://buuuuuuuuuuuuuuuu.github.io/BeANKSY/#/tag/dose-1?api=…&k=…`
+6. Auf **Fertig** tippen und testen: Dose scannen, BeANKSY öffnet sich mit der aufgeklappten Kachel der Bohne in dieser Dose.
 
-**Aus der Dose heraus verwalten:** Dose scannen, **„Dose bearbeiten“** tippen. In der App siehst du, was gerade drin ist, und kannst eine andere Bohne antippen, **+ Neue Bohne in diese Dose** anlegen, die Bohne als **aufgebraucht** markieren oder die Dose umbenennen. In der Dosen-Liste ist die zuletzt gescannte Dose markiert.
+Mehr braucht es nicht. Die App zählt den Scan selbst beim Worker (Bezüge, große Kachel „Zuletzt gescannt“).
 
-**Gut zu wissen:** iOS öffnet den App-Link in Safari, nicht in der App auf dem Home-Bildschirm. Das ist kein Problem: Der Link bringt die Sync-Daten mit, die Änderung landet sofort im Worker, und die App auf dem Home-Bildschirm zeigt sie beim nächsten Öffnen. Der App-Link enthält deinen Token, behandle ihn wie die Mitteilungs-URL.
+**Bohne in der Dose wechseln:** In der aufgeklappten Kachel auf **„Bohne in Dose 1 wechseln“** tippen. Dort tippst du eine andere Bohne an, legst mit **+ Neue Bohne in diese Dose** eine neue an oder markierst die alte als **aufgebraucht**. Ist eine gescannte Dose leer oder noch unbekannt, öffnet sich diese Auswahl direkt.
+
+**Hast du die Automation schon mit „Inhalte von URL abrufen“ und „Mitteilung anzeigen“ eingerichtet?** Lösch diese beiden Aktionen und nimm nur noch „URLs öffnen“. Sonst wird jeder Scan doppelt gezählt. Die Mitteilungs-URL gibt es weiterhin (Dosen → „Mitteilungs-URL (optional)“), falls du irgendwo nur den Text brauchst.
+
+**Gut zu wissen:** iOS öffnet den Link in Safari, nicht in der App auf dem Home-Bildschirm. Das ist kein Problem: Der Link bringt die Sync-Daten mit, Änderungen landen sofort im Worker, und die App auf dem Home-Bildschirm zeigt sie beim nächsten Öffnen. Der Link enthält deinen Token, behandle ihn wie ein Passwort.
 
 **Hinweis zu deinen vorhandenen Tags:** Ist auf einem Tag schon eine URL gespeichert, bietet das iPhone zusätzlich an, diese URL zu öffnen. Wenn dich das stört, lösch den Tag mit der App *NFC Tools* (*Weitere → Tag löschen*). Die Automation braucht nur die ID des Tags, der Inhalt ist egal.
 
@@ -163,6 +154,7 @@ Alle Aufrufe außer `GET /` brauchen den Token, entweder als Header `Authorizati
 
 | Version | Datum | Änderungen |
 |---|---|---|
+| 2.4 | 21.11.2026 | Scan landet direkt in der aufgeklappten Bohnen-Kachel, dort „Bohne in Dose wechseln“; Kurzbefehl braucht nur noch „URLs öffnen“, die App zählt den Scan selbst |
 | 2.3 | 21.11.2026 | Dosen aus der Dose heraus verwalten: Kurzbefehl mit Menü „Passt / Dose bearbeiten“, App-Link pro Dose, Dosen-Ansicht nach dem Scan, unbekannte Dose direkt anlegen |
 | 2.2 | 21.11.2026 | Große Kachel zeigt immer die zuletzt gescannte Dose (Worker merkt sich den letzten Scan, App lädt alle 20 s nach; neuer Worker-Code nötig) |
 | 2.1 | 21.11.2026 | Schablonen-Logo im Header und (dunkel) oben rechts in der großen Kachel |
