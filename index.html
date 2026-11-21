@@ -168,6 +168,7 @@
   .search input { padding-left: 42px; background: var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%239c8c78' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-3.5-3.5'/%3E%3C/svg%3E") no-repeat 14px center / 18px; border-radius: 999px; }
   [data-look="light"] .tools { display: flex; align-items: center; gap: 14px; border-bottom: 1px solid var(--line); margin: 0 -16px 14px; padding: 4px 16px; }
   [data-look="light"] .search { flex: 1; margin: 0; }
+  [data-look="light"] .search input { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%237c786f' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-3.5-3.5'/%3E%3C/svg%3E"); }
   [data-look="light"] .search input { border: 0; border-radius: 0; background-color: transparent; padding: 12px 0 12px 28px; background-position: 0 center; }
   .seg { display: flex; background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 3px; gap: 3px; }
   .seg button { flex: 1; border: 0; background: none; border-radius: 999px; padding: 8px 6px; font-size: 14px; color: var(--muted); }
@@ -215,6 +216,8 @@
   [data-look="light"] .bean-nums .d { position: absolute; right: 0; top: -8px; font-size: 12px; letter-spacing: -.02em; }
   [data-look="light"] .bean-nums .d b { font-size: 22px; font-weight: 400; letter-spacing: -.06em; }
   [data-look="dark"] .sw { display: block; }
+  [data-look="dark"] .bean.recent:not(.hl) { border-color: color-mix(in srgb, var(--accent) 55%, transparent); }
+  [data-look="dark"] .bean.recent .sw { box-shadow: 0 0 0 2px var(--bg), 0 0 0 3.5px var(--accent); }
   [data-look="dark"] .bean { background: color-mix(in srgb, var(--surface) 85%, transparent); }
   [data-look="dark"] .bean-name { font-size: 22px; font-weight: 400; letter-spacing: 0; line-height: 1.02; min-height: 2.04em; }
   /* Instrument Serif gibt es nur in einer Stärke: Kontur macht die Ziffern kräftiger */
@@ -382,6 +385,7 @@
     opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; max-width: 90vw; text-align: center; z-index: 50;
   }
   .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .update-bar:not([hidden]) ~ .toast { bottom: calc(166px + var(--safe-bottom)); }
 </style>
 </head>
 <body>
@@ -403,8 +407,10 @@
   </defs>
 </svg>
 <header>
-  <h1><svg class="logo" aria-hidden="true"><use href="#mark"/></svg><span id="title">Bohnen</span> <span id="syncDot" class="sync-dot" title="Sync-Status"></span></h1>
-  <a class="icon-btn" href="#/" id="navHome" aria-label="Bohnen">☕</a>
+  <h1><svg class="logo" aria-hidden="true"><use href="#mark"/></svg><span id="title">BeANKSY</span> <span id="syncDot" class="sync-dot" title="Sync-Status"></span></h1>
+  <a class="icon-btn" href="#/" id="navHome" aria-label="Bohnen">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9h12v5a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5V9z"/><path d="M16 11h1.5a2.5 2.5 0 0 1 0 5H16"/><path d="M8 3.5c-.6.9.6 1.6 0 2.5M12 3.5c-.6.9.6 1.6 0 2.5"/></svg>
+  </a>
   <a class="icon-btn" href="#/dosen" id="navTags" aria-label="Dosen">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 8.5a8 8 0 0 1 0 7"/><path d="M9.5 6a12 12 0 0 1 0 12"/><path d="M13 3.5a16 16 0 0 1 0 17"/></svg>
   </a>
@@ -491,7 +497,7 @@ try {
     localStorage.removeItem('kaffee.' + k);
   }
 } catch {}
-const EMPTY = () => ({ version: 1, updatedAt: 0, beans: [], tags: [] });
+const EMPTY = () => ({ version: 1, updatedAt: 0, beans: [], tags: [], deleted: { beans: {}, tags: {} } });
 const TAG_ID = /^[a-z0-9-]{1,40}$/; // gleiche Regel wie im Worker
 
 function readJSON(key, fallback) {
@@ -533,18 +539,63 @@ function normalize(d) {
     notes: b.notes ? String(b.notes) : '',
     archived: !!b.archived,
     createdAt: Number(b.createdAt) || 0,
+    u: Number(b.u) || 0, // zuletzt geändert (für das Zusammenführen beim Sync)
   }));
   out.tags = (Array.isArray(d.tags) ? d.tags : []).filter(t => t && TAG_ID.test(t.id)).map(t => ({
-    id: t.id, label: t.label ? String(t.label) : t.id, beanId: t.beanId || null,
+    id: t.id, label: t.label ? String(t.label) : t.id, beanId: t.beanId ? String(t.beanId) : null,
+    u: Number(t.u) || 0,
   }));
+  // Gelöschte Einträge merken, damit sie beim Zusammenführen nicht wieder auftauchen (90 Tage)
+  const cutoff = Date.now() - 90 * 86400000;
+  for (const kind of ['beans', 'tags']) {
+    const src = d.deleted && d.deleted[kind];
+    if (src && typeof src === 'object') for (const [id, at] of Object.entries(src)) if (Number(at) > cutoff) out.deleted[kind][id] = Number(at);
+  }
   return out;
 }
 
-function save() { writeJSON(LS_DATA, data); writeJSON(LS_DIRTY, dirty); }
+// Stand des Workers beim letzten Sync. Fehlen die lokalen Daten (z. B. von Safari gelöscht), gilt 0: dann wird zusammengeführt statt überschrieben.
+let syncedAt = readJSON(LS_DATA, null) === null ? 0 : Number(readJSON('beanksy.syncedAt', 0)) || 0;
+function save() { writeJSON(LS_DATA, data); writeJSON(LS_DIRTY, dirty); writeJSON('beanksy.syncedAt', syncedAt); }
+
+/* Schatten des letzten Stands: Daran erkennt commit(), welche Bohnen und Dosen sich geändert haben
+   oder gelöscht wurden, und stempelt sie mit der Zeit. So lassen sich zwei Stände später zusammenführen. */
+const itemKey = x => JSON.stringify({ ...x, u: undefined });
+let shadow = { beans: new Map(), tags: new Map() };
+function rebuildShadow() {
+  for (const kind of ['beans', 'tags']) shadow[kind] = new Map(data[kind].map(x => [x.id, itemKey(x)]));
+}
+rebuildShadow();
+function stamp(now) {
+  for (const kind of ['beans', 'tags']) {
+    const seen = new Set();
+    for (const x of data[kind]) {
+      seen.add(x.id);
+      if (shadow[kind].get(x.id) !== itemKey(x)) x.u = now;
+    }
+    for (const id of shadow[kind].keys()) if (!seen.has(id)) data.deleted[kind][id] = now;
+  }
+  rebuildShadow();
+}
+/** Zwei Stände zusammenführen: pro Bohne/Dose gewinnt die jüngere Änderung, Gelöschtes bleibt gelöscht. */
+function merge(local, remote) {
+  const out = EMPTY();
+  for (const kind of ['beans', 'tags']) {
+    for (const src of [remote, local]) for (const [id, at] of Object.entries(src.deleted[kind])) out.deleted[kind][id] = Math.max(out.deleted[kind][id] || 0, at);
+    const m = new Map(remote[kind].map(x => [x.id, x]));
+    for (const x of local[kind]) { const y = m.get(x.id); if (!y || x.u > y.u) m.set(x.id, x); }
+    out[kind] = [...m.values()].filter(x => !(out.deleted[kind][x.id] >= x.u));
+  }
+  return out;
+}
+
+/** Nach Import oder Zurückholen: Was jetzt wieder da ist, gilt nicht mehr als gelöscht. */
+function unDelete() { for (const kind of ['beans', 'tags']) for (const x of data[kind]) delete data.deleted[kind][x.id]; }
 
 /** Jede Änderung läuft hierüber: lokal speichern, neu zeichnen, hochladen. */
 function commit() {
   data.updatedAt = Date.now();
+  stamp(data.updatedAt);
   dirty = true;
   save();
   render();
@@ -611,9 +662,28 @@ async function push() {
   syncing = true;
   setSync('pending', 'Wird gespeichert …');
   try {
-    const snapshot = data.updatedAt;
-    await api('/data', { method: 'PUT', body: JSON.stringify(data) });
-    if (data.updatedAt === snapshot) { dirty = false; save(); }
+    for (let attempt = 0; ; attempt++) {
+      const snapshot = data.updatedAt;
+      const res = await fetch(`${apiBase()}/data?base=${syncedAt}`, {
+        method: 'PUT', cache: 'no-store', body: JSON.stringify(data),
+        headers: { Authorization: 'Bearer ' + cfg.token, 'Content-Type': 'application/json' },
+      });
+      if (res.status === 409 && attempt < 3) {
+        // Ein anderes Gerät (oder Safari) hat inzwischen gespeichert: zusammenführen statt überschreiben
+        const remote = normalize((await res.json()).data);
+        data = merge(data, remote);
+        data.updatedAt = Math.max(Date.now(), remote.updatedAt + 1);
+        syncedAt = remote.updatedAt;
+        save(); rebuildShadow(); render(); handleTagRoute();
+        continue;
+      }
+      if (!res.ok) throw new Error(res.status + ' ' + (await res.text()));
+      const r = await res.json();
+      syncedAt = Number(r.updatedAt) || snapshot;
+      if (data.updatedAt === snapshot) dirty = false;
+      save();
+      break;
+    }
     setSync('ok', 'Synchronisiert');
   } catch (e) {
     setSync('error', 'Sync-Fehler: ' + e.message);
@@ -631,7 +701,7 @@ function schedulePush() {
 
 /* ---------- Version & Update-Hinweis ---------- */
 // Bei jedem Update hier, in version.json und in sw.js (CACHE) dieselbe Nummer eintragen.
-const APP_VERSION = '2.7';
+const APP_VERSION = '2.8';
 $('#appVersion').textContent = `BeANKSY · Version ${APP_VERSION}`;
 async function checkVersion() {
   try {
@@ -700,7 +770,8 @@ async function pull() {
   try {
     setSync('pending', 'Lade …');
     const remote = normalize(await api('/data'));
-    if (remote.updatedAt > data.updatedAt) { data = remote; save(); handleTagRoute(); render(); scrollToHighlight(); }
+    if (remote.updatedAt > data.updatedAt) { data = remote; syncedAt = remote.updatedAt; save(); rebuildShadow(); handleTagRoute(); render(); scrollToHighlight(); }
+    else if (remote.updatedAt === data.updatedAt) { syncedAt = remote.updatedAt; save(); }
     else if (remote.updatedAt < data.updatedAt && data.updatedAt > 0) { dirty = true; save(); pullUses(); return push(); }
     setSync('ok', 'Synchronisiert');
     pullUses();
@@ -933,7 +1004,6 @@ function renderTags() {
   let html = `<p class="muted">Jede Dose bekommt einen NFC-Tag. Du musst die Dosen nicht unterscheiden können: Scanne einfach die Dose in deiner Hand, dann öffnet sich die Bohne darin. Die zuletzt gescannte Dose ist hier markiert.</p>`;
   if (!data.tags.length) html += `<div class="empty"><div class="big">📡</div><p>Noch keine Dosen angelegt.</p></div>`;
   for (const t of data.tags) {
-    const url = hasSync() ? `${apiBase()}/n/${t.id}?k=${encodeURIComponent(cfg.token)}` : '';
     const scanned = ls && ls.tag === t.id;
     html += `
     <div class="card${scanned ? ' scanned' : ''}" data-tag="${esc(t.id)}">
@@ -943,7 +1013,7 @@ function renderTags() {
       <label>Bohne in dieser Dose</label>
       <select data-act="assign">${options(t.beanId)}</select>
       <div class="row" style="margin-top:12px">
-        ${url ? '<button class="btn small primary" data-act="copy-app">Link für Kurzbefehl kopieren</button><button class="btn small" data-act="copy-url">Mitteilungs-URL (optional)</button>' : '<span class="muted">Für die Kurzbefehl-Links zuerst den Sync einrichten.</span>'}
+        ${hasSync() ? '<button class="btn small primary" data-act="copy-app">Link für Kurzbefehl kopieren</button>' : '<span class="muted">Für die Kurzbefehl-Links zuerst den Sync einrichten.</span>'}
         <button class="btn small" data-act="rename">Umbenennen</button>
         <button class="btn small danger" data-act="del-tag">Löschen</button>
       </div>
@@ -984,6 +1054,11 @@ function renderSettings() {
         <input type="file" id="importFile" accept="application/json,.json" hidden>
       </div>
     </div>
+    ${hasSync() ? `<div class="card">
+      <h2>Sicherungen im Worker</h2>
+      <p class="muted">Der Worker hebt jeden Tag den Stand vor der ersten Änderung auf, 30 Tage lang. Damit kannst du einen älteren Stand zurückholen.</p>
+      <div class="row" id="backupList"><button class="btn" data-act="backups">Sicherungen anzeigen</button></div>
+    </div>` : ''}
     <p class="muted" style="text-align:center">${data.beans.length} Bohnen · ${data.tags.length} Dosen · Stand ${data.updatedAt ? new Date(data.updatedAt).toLocaleString('de-DE') : '–'}</p>`;
 }
 
@@ -1143,7 +1218,7 @@ $('#view').addEventListener('click', async e => {
   if (/^(dose|grind)[+-]$/.test(act) && bean) {
     const field = act.slice(0, -1);
     const delta = act.endsWith('+') ? 0.5 : -0.5;
-    bean[field] = Math.max(0, round((bean[field] || 0) + delta));
+    bean[field] = Math.max(field === 'dose' ? 0.5 : 0, round((bean[field] || 0) + delta));
     return commit();
   }
   if (act === 'swap') return openTagSheet(btn.dataset.tag, false);
@@ -1188,12 +1263,6 @@ $('#view').addEventListener('click', async e => {
     catch { await ask({ title: 'App-Link kopieren', text: 'Das Kopieren hat nicht geklappt. Markiere den Link und kopiere ihn von Hand.', input: url, maxlength: 2000 }); }
     return;
   }
-  if (act === 'copy-url' && tag) {
-    const url = `${apiBase()}/n/${tag.id}?k=${encodeURIComponent(cfg.token)}`;
-    try { await navigator.clipboard.writeText(url); toast('URL kopiert'); }
-    catch { await ask({ title: 'URL kopieren', text: 'Das Kopieren hat nicht geklappt. Markiere die URL und kopiere sie von Hand.', input: url, maxlength: 2000 }); }
-    return;
-  }
 
   if (act === 'save-cfg' || act === 'test-cfg') {
     const status = $('#cfgStatus');
@@ -1212,7 +1281,7 @@ $('#view').addEventListener('click', async e => {
       }
       writeJSON(LS_CFG, cfg);
       // Erste Verbindung: was neuer ist, gewinnt. Hat der Worker noch nichts, werden lokale Daten hochgeladen.
-      if (remote.updatedAt > data.updatedAt) { data = remote; dirty = false; save(); }
+      if (remote.updatedAt > data.updatedAt) { data = remote; syncedAt = remote.updatedAt; dirty = false; save(); rebuildShadow(); }
       else if (data.updatedAt > 0) { dirty = true; save(); await push(); }
       status.textContent = '✓ Gespeichert und verbunden.';
       setSync('ok', 'Synchronisiert');
@@ -1237,6 +1306,32 @@ $('#view').addEventListener('click', async e => {
     return;
   }
   if (act === 'import') return $('#importFile').click();
+  if (act === 'backups') {
+    const box = $('#backupList');
+    box.innerHTML = '<span class="muted">Lade …</span>';
+    try {
+      const days = await api('/backups');
+      box.innerHTML = Array.isArray(days) && days.length
+        ? days.map(d => `<button class="btn small" data-act="restore" data-day="${esc(d)}">${esc(formatDate(d))}</button>`).join('')
+        : '<span class="muted">Noch keine Sicherung. Die erste entsteht bei der nächsten Änderung.</span>';
+    } catch (err) {
+      box.innerHTML = `<span class="muted">${String(err.message).startsWith('404') ? 'Dafür braucht der Worker den neuen Code (siehe README).' : 'Keine Verbindung: ' + esc(err.message)}</span>`;
+    }
+    return;
+  }
+  if (act === 'restore') {
+    const day = btn.dataset.day;
+    try {
+      const backup = normalize(await api('/backup/' + encodeURIComponent(day)));
+      if (!await ask({ title: `Stand vom ${formatDate(day)} zurückholen?`, text: `${backup.beans.length} Bohnen und ${backup.tags.length} Dosen. Der aktuelle Stand wird ersetzt. Tipp: Vorher unter Backup exportieren.`, yes: 'Zurückholen', danger: true })) return;
+      data.beans = backup.beans; data.tags = backup.tags; unDelete();
+      commit();
+      toast('Sicherung zurückgeholt');
+    } catch (err) {
+      toast('Zurückholen fehlgeschlagen: ' + err.message);
+    }
+    return;
+  }
 });
 
 $('#view').addEventListener('change', async e => {
@@ -1255,7 +1350,7 @@ $('#view').addEventListener('change', async e => {
       if (!Array.isArray(parsed.beans) || !Array.isArray(parsed.tags)) throw new Error('Kein gültiges Backup');
       const imported = normalize(parsed);
       if (!await ask({ title: 'Backup einspielen?', text: `${imported.beans.length} Bohnen und ${imported.tags.length} Dosen. Der aktuelle Stand wird ersetzt.`, yes: 'Einspielen', danger: true })) return;
-      data = imported;
+      data.beans = imported.beans; data.tags = imported.tags; unDelete();
       commit();
       toast('Backup eingespielt');
     } catch (err) {

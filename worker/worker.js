@@ -9,6 +9,10 @@
  *   GET  /            -> "BeANKSY-API läuft" (Funktionstest, ohne Token)
  *   GET  /data        -> kompletter Datenstand als JSON
  *   PUT  /data        -> kompletten Datenstand speichern (JSON)
+ *                        ?base=<updatedAt>: Stand, den die App zuletzt kannte. Ist der gespeicherte Stand neuer,
+ *                        antwortet der Worker mit 409 und dem aktuellen Stand, die App führt beides zusammen.
+ *   GET  /backups     -> Liste der Tagessicherungen (je Tag der Stand vor der ersten Änderung, 30 Tage)
+ *   GET  /backup/<tag> -> eine Tagessicherung, z. B. /backup/2026-11-21
  *   GET  /n/<dose-id> -> Klartext für die iPhone-Mitteilung (zählt den Scan als Bezug)
  *   GET  /uses        -> Bezüge pro Bohne als JSON { <bohnen-id>: { n, last }, _last: { tag, bean, at } }
  *                        (_last = zuletzt gescannte Dose, für die große Kachel in der App)
@@ -20,6 +24,8 @@
 const KEY = 'data';
 const KEY_USES = 'uses'; // Zähler getrennt von den Daten, damit Sync sie nie überschreibt
 const MAX_BYTES = 512 * 1024; // 512 KB reichen für sehr viele Bohnen
+const BACKUP_PREFIX = 'backup:';
+const BACKUP_TTL = 30 * 24 * 60 * 60; // Tagessicherungen löschen sich nach 30 Tagen selbst
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -123,6 +129,14 @@ export default {
 
       if (request.method === 'PUT') {
         const body = await request.text();
+        const raw = await env.BeANKSY.get(KEY);
+        let current = { ...EMPTY };
+        try { if (raw) current = JSON.parse(raw); } catch {}
+        // Konfliktschutz: Hat inzwischen ein anderes Gerät gespeichert, nichts überschreiben
+        const base = url.searchParams.get('base');
+        if (base !== null && (Number(current.updatedAt) || 0) > (Number(base) || 0)) {
+          return json({ conflict: true, data: current }, 409);
+        }
         if (body.length > MAX_BYTES) return text('Daten zu groß', 413);
         let data;
         try {
@@ -133,6 +147,11 @@ export default {
         const err = validate(data);
         if (err) return text(err, 400);
         data.updatedAt = Number(data.updatedAt) || Date.now();
+        // Tagessicherung: der Stand vor der ersten Änderung des Tages
+        const day = new Date().toISOString().slice(0, 10);
+        if (raw && !(await env.BeANKSY.get(BACKUP_PREFIX + day))) {
+          await env.BeANKSY.put(BACKUP_PREFIX + day, raw, { expirationTtl: BACKUP_TTL });
+        }
         await env.BeANKSY.put(KEY, JSON.stringify(data));
         return json({ ok: true, updatedAt: data.updatedAt });
       }
@@ -140,6 +159,17 @@ export default {
     }
 
     if (path === '/uses' && request.method === 'GET') return json(await loadUses(env));
+
+    if (path === '/backups' && request.method === 'GET') {
+      const list = await env.BeANKSY.list({ prefix: BACKUP_PREFIX });
+      return json(list.keys.map((k) => k.name.slice(BACKUP_PREFIX.length)).sort().reverse());
+    }
+    const bk = path.match(/^\/backup\/(\d{4}-\d{2}-\d{2})$/);
+    if (bk && request.method === 'GET') {
+      const raw = await env.BeANKSY.get(BACKUP_PREFIX + bk[1]);
+      if (!raw) return text('Keine Sicherung für diesen Tag', 404);
+      return new Response(raw, { headers: { ...CORS, 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' } });
+    }
 
     const m = path.match(/^\/n\/([a-z0-9-]{1,40})$/);
     if (m && request.method === 'GET') {
