@@ -1,0 +1,138 @@
+/**
+ * Kaffee-API – Cloudflare Worker
+ *
+ * Benötigt im Cloudflare-Dashboard:
+ *   - KV-Binding mit dem Variablennamen  KAFFEE
+ *   - Secret (verschlüsselte Variable)   TOKEN   = dein geheimer Schlüssel
+ *
+ * Endpunkte (alle außer "/" brauchen den Token):
+ *   GET  /            -> "Kaffee-API läuft" (Funktionstest, ohne Token)
+ *   GET  /data        -> kompletter Datenstand als JSON
+ *   PUT  /data        -> kompletten Datenstand speichern (JSON)
+ *   GET  /n/<dose-id> -> Klartext für die iPhone-Mitteilung
+ *
+ * Token wahlweise als Header  "Authorization: Bearer <TOKEN>"
+ * oder als Parameter          "?k=<TOKEN>"  (praktisch für Kurzbefehle).
+ */
+
+const KEY = 'data';
+const MAX_BYTES = 512 * 1024; // 512 KB reichen für sehr viele Bohnen
+
+const CORS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, PUT, OPTIONS',
+  'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+  'Access-Control-Max-Age': '86400',
+};
+
+const EMPTY = { version: 1, updatedAt: 0, beans: [], tags: [] };
+
+function text(body, status = 200) {
+  return new Response(body, {
+    status,
+    headers: { ...CORS, 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' },
+  });
+}
+
+function json(obj, status = 200) {
+  return new Response(JSON.stringify(obj), {
+    status,
+    headers: { ...CORS, 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' },
+  });
+}
+
+/** Vergleich ohne frühes Abbrechen (gegen Timing-Angriffe). */
+function safeEqual(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string' || a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
+/** Zahl deutsch formatieren: 18 -> "18", 12.5 -> "12,5" */
+function fmt(n) {
+  const num = Number(n);
+  if (!Number.isFinite(num)) return String(n ?? '–');
+  return num.toLocaleString('de-DE', { maximumFractionDigits: 2 });
+}
+
+/** Text für die Mitteilung: nur Name, Gramm, Mahlgrad. */
+function notificationText(data, tagId) {
+  const tags = Array.isArray(data.tags) ? data.tags : [];
+  const beans = Array.isArray(data.beans) ? data.beans : [];
+  const tag = tags.find((t) => t.id === tagId);
+  if (!tag) return `Unbekannte Dose „${tagId}“ – in der App unter „Dosen“ anlegen.`;
+  const bean = beans.find((b) => b.id === tag.beanId && !b.archived);
+  if (!bean) return `${tag.label || tag.id}: keine Bohne zugeordnet.`;
+  return `${bean.name}\n${fmt(bean.dose)} g · Mahlgrad ${fmt(bean.grind)}`;
+}
+
+/** Minimale Plausibilitätsprüfung der hochgeladenen Daten. */
+function validate(data) {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return 'Kein JSON-Objekt';
+  if (!Array.isArray(data.beans)) return 'beans fehlt';
+  if (!Array.isArray(data.tags)) return 'tags fehlt';
+  for (const b of data.beans) {
+    if (!b || typeof b.id !== 'string' || typeof b.name !== 'string') return 'Ungültige Bohne';
+  }
+  for (const t of data.tags) {
+    if (!t || typeof t.id !== 'string' || !/^[a-z0-9-]{1,40}$/.test(t.id)) return 'Ungültige Dosen-ID';
+  }
+  return null;
+}
+
+async function load(env) {
+  const raw = await env.KAFFEE.get(KEY);
+  if (!raw) return { ...EMPTY };
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return { ...EMPTY };
+  }
+}
+
+export default {
+  async fetch(request, env) {
+    const url = new URL(request.url);
+    const path = url.pathname.replace(/\/+$/, '') || '/';
+
+    if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
+
+    if (path === '/' && request.method === 'GET') return text('Kaffee-API läuft ☕');
+
+    if (!env.TOKEN) return text('TOKEN ist im Worker nicht gesetzt.', 500);
+    if (!env.KAFFEE) return text('KV-Binding KAFFEE fehlt.', 500);
+
+    const auth = request.headers.get('Authorization') || '';
+    const token = auth.replace(/^Bearer\s+/i, '').trim() || url.searchParams.get('k') || '';
+    if (!safeEqual(token, env.TOKEN)) return text('Nicht autorisiert', 401);
+
+    if (path === '/data') {
+      if (request.method === 'GET') return json(await load(env));
+
+      if (request.method === 'PUT') {
+        const body = await request.text();
+        if (body.length > MAX_BYTES) return text('Daten zu groß', 413);
+        let data;
+        try {
+          data = JSON.parse(body);
+        } catch {
+          return text('Ungültiges JSON', 400);
+        }
+        const err = validate(data);
+        if (err) return text(err, 400);
+        data.updatedAt = Number(data.updatedAt) || Date.now();
+        await env.KAFFEE.put(KEY, JSON.stringify(data));
+        return json({ ok: true, updatedAt: data.updatedAt });
+      }
+      return text('Methode nicht erlaubt', 405);
+    }
+
+    const m = path.match(/^\/n\/([a-z0-9-]{1,40})$/);
+    if (m && request.method === 'GET') {
+      return text(notificationText(await load(env), m[1]));
+    }
+
+    return text('Nicht gefunden', 404);
+  },
+};

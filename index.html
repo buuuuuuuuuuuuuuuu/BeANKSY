@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bohnen</title>
+<meta name="theme-color" content="#17110d">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Bohnen">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<style>
+  :root {
+    --bg: #17110d;
+    --surface: #231a14;
+    --surface-2: #2e231b;
+    --line: #3d2f25;
+    --text: #f3e9df;
+    --muted: #a8978a;
+    --accent: #d9a066;
+    --accent-ink: #1d140e;
+    --danger: #e0725f;
+    --ok: #7fbf7a;
+    --warn: #e6b450;
+    --radius: 18px;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); }
+  body {
+    font: 16px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+    min-height: 100vh;
+    padding-bottom: calc(110px + var(--safe-bottom));
+  }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+
+  /* Kopfzeile */
+  header {
+    position: sticky; top: 0; z-index: 10;
+    display: flex; align-items: center; gap: 8px;
+    padding: calc(12px + var(--safe-top)) 16px 12px;
+    background: color-mix(in srgb, var(--bg) 88%, transparent);
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    border-bottom: 1px solid var(--line);
+  }
+  header h1 { font-size: 22px; margin: 0; flex: 1; display: flex; align-items: center; gap: 10px; letter-spacing: -0.01em; }
+  .sync-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); display: inline-block; }
+  .sync-dot.ok { background: var(--ok); }
+  .sync-dot.pending { background: var(--warn); }
+  .sync-dot.error { background: var(--danger); }
+  .icon-btn {
+    border: 1px solid var(--line); background: var(--surface); border-radius: 12px;
+    height: 40px; min-width: 40px; padding: 0 12px; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    font-size: 15px; color: var(--text); text-decoration: none;
+  }
+  .icon-btn[aria-current="page"] { border-color: var(--accent); color: var(--accent); }
+  .icon-btn svg { width: 20px; height: 20px; }
+
+  main { padding: 16px; max-width: 640px; margin: 0 auto; }
+
+  .banner {
+    background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 14px 16px; margin-bottom: 16px; color: var(--muted); font-size: 15px;
+  }
+  .banner a { color: var(--accent); }
+
+  /* Bohnen-Karten */
+  .bean {
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+    margin-bottom: 12px; overflow: hidden; transition: border-color .2s, box-shadow .2s;
+  }
+  .bean.hl { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent); }
+  .bean-head {
+    width: 100%; text-align: left; border: 0; background: none; padding: 16px;
+    display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; align-items: center;
+  }
+  .bean-name { font-size: 20px; font-weight: 650; letter-spacing: -0.01em; line-height: 1.2; overflow-wrap: anywhere; }
+  .chev { color: var(--muted); transition: transform .2s; font-size: 18px; }
+  .bean.open .chev { transform: rotate(180deg); }
+  .vals { grid-column: 1 / -1; display: flex; gap: 10px; margin-top: 6px; }
+  .val {
+    flex: 1; background: var(--surface-2); border-radius: 14px; padding: 10px 12px;
+    display: flex; flex-direction: column;
+  }
+  .val b { font-size: 34px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; color: var(--accent); }
+  .val small { color: var(--muted); font-size: 13px; margin-top: 4px; }
+  .bean-more { display: none; padding: 0 16px 16px; }
+  .bean.open .bean-more { display: block; }
+  .stepper { display: flex; gap: 10px; margin-bottom: 14px; }
+  .stepper > div { flex: 1; display: flex; align-items: center; justify-content: space-between; background: var(--surface-2); border-radius: 14px; padding: 6px; }
+  .stepper span { color: var(--muted); font-size: 13px; }
+  .step-btn { width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); font-size: 22px; line-height: 1; }
+  dl { margin: 0 0 14px; display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; font-size: 15px; }
+  dt { color: var(--muted); }
+  dd { margin: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .btn {
+    border: 1px solid var(--line); background: var(--surface-2); border-radius: 12px;
+    padding: 10px 14px; font-size: 15px;
+  }
+  .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 650; }
+  .btn.danger { color: var(--danger); }
+  .btn.small { padding: 7px 11px; font-size: 14px; }
+
+  .empty { text-align: center; color: var(--muted); padding: 48px 16px; }
+  .empty .big { font-size: 46px; }
+
+  details.archive { margin-top: 24px; color: var(--muted); }
+  details.archive summary { cursor: pointer; padding: 8px 0; }
+  details.archive .bean { opacity: .75; }
+
+  /* Schwebender Plus-Button */
+  .fab {
+    position: fixed; right: 20px; bottom: calc(24px + var(--safe-bottom));
+    width: 62px; height: 62px; border-radius: 50%; border: 0;
+    background: var(--accent); color: var(--accent-ink); font-size: 34px; line-height: 1;
+    box-shadow: 0 10px 28px rgba(0,0,0,.45);
+  }
+
+  /* Listen (Dosen, Einstellungen) */
+  h2 { font-size: 18px; margin: 8px 0 12px; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; margin-bottom: 12px; }
+  .card h3 { margin: 0 0 4px; font-size: 17px; }
+  .muted { color: var(--muted); font-size: 14px; }
+  code { font-family: ui-monospace, Menlo, monospace; font-size: 13px; background: var(--surface-2); padding: 2px 6px; border-radius: 6px; overflow-wrap: anywhere; }
+
+  label { display: block; font-size: 14px; color: var(--muted); margin: 12px 0 6px; }
+  input, select, textarea {
+    width: 100%; background: var(--surface-2); border: 1px solid var(--line); border-radius: 12px;
+    padding: 12px 14px; font-size: 17px; outline: none;
+  }
+  input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+  textarea { min-height: 84px; resize: vertical; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+  /* Formular-Dialog */
+  dialog {
+    border: 1px solid var(--line); border-radius: 22px 22px 0 0; padding: 0; margin: auto auto 0;
+    width: 100%; max-width: 640px; max-height: 92vh; background: var(--surface); color: var(--text);
+  }
+  dialog::backdrop { background: rgba(0,0,0,.55); }
+  dialog form { padding: 20px 18px calc(20px + var(--safe-bottom)); }
+  dialog h2 { margin-top: 0; }
+  dialog details { margin-top: 16px; border-top: 1px solid var(--line); padding-top: 8px; }
+  dialog details summary { cursor: pointer; color: var(--accent); padding: 8px 0; }
+  .dialog-actions { display: flex; gap: 10px; margin-top: 20px; }
+  .dialog-actions .btn { flex: 1; padding: 13px; }
+
+  .toast {
+    position: fixed; left: 50%; bottom: calc(100px + var(--safe-bottom)); transform: translateX(-50%) translateY(20px);
+    background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 12px; font-size: 15px;
+    opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; max-width: 90vw; text-align: center; z-index: 50;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+<header>
+  <h1><span id="title">Bohnen</span> <span id="syncDot" class="sync-dot" title="Sync-Status"></span></h1>
+  <a class="icon-btn" href="#/" id="navHome" aria-label="Bohnen">☕</a>
+  <a class="icon-btn" href="#/dosen" id="navTags" aria-label="Dosen">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 8.5a8 8 0 0 1 0 7"/><path d="M9.5 6a12 12 0 0 1 0 12"/><path d="M13 3.5a16 16 0 0 1 0 17"/></svg>
+  </a>
+  <a class="icon-btn" href="#/einstellungen" id="navSettings" aria-label="Einstellungen">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+  </a>
+</header>
+
+<main id="view"></main>
+
+<button class="fab" id="fab" aria-label="Neue Bohne">+</button>
+
+<dialog id="beanDialog">
+  <form id="beanForm" method="dialog" autocomplete="off">
+    <h2 id="formTitle">Neue Bohne</h2>
+    <label for="fName">Name der Bohne</label>
+    <input id="fName" name="name" required maxlength="80" placeholder="z. B. Ethiopia Guji">
+    <div class="two">
+      <div>
+        <label for="fDose">Gramm pro Shot</label>
+        <input id="fDose" name="dose" required inputmode="decimal" placeholder="18">
+      </div>
+      <div>
+        <label for="fGrind">Mahlgrad DF54</label>
+        <input id="fGrind" name="grind" required inputmode="decimal" placeholder="12">
+      </div>
+    </div>
+    <details id="fMore">
+      <summary>Weitere Angaben</summary>
+      <label for="fRoaster">Röster (von wem?)</label>
+      <input id="fRoaster" name="roaster" maxlength="80" placeholder="z. B. Bonanza">
+      <label for="fRoastDate">Röstdatum</label>
+      <input id="fRoastDate" name="roastDate" type="date">
+      <label for="fTag">Dose (NFC-Tag)</label>
+      <select id="fTag" name="tag"></select>
+      <label for="fNotes">Notiz</label>
+      <textarea id="fNotes" name="notes" maxlength="1000" placeholder="Ausbeute, Bezugszeit, Geschmack …"></textarea>
+    </details>
+    <div class="dialog-actions">
+      <button type="button" class="btn" id="formCancel">Abbrechen</button>
+      <button type="submit" class="btn primary" id="formSave">Speichern</button>
+    </div>
+    <div class="dialog-actions" id="formDeleteRow" hidden>
+      <button type="button" class="btn danger" id="formDelete">Bohne löschen</button>
+    </div>
+  </form>
+</dialog>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+'use strict';
+
+/* ---------- Speicher & Zustand ---------- */
+const LS_DATA = 'kaffee.data';
+const LS_DIRTY = 'kaffee.dirty';
+const LS_CFG = 'kaffee.cfg';
+const EMPTY = () => ({ version: 1, updatedAt: 0, beans: [], tags: [] });
+
+function readJSON(key, fallback) {
+  try { const v = JSON.parse(localStorage.getItem(key)); return v ?? fallback; } catch { return fallback; }
+}
+function writeJSON(key, value) {
+  try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) { console.warn('Speichern fehlgeschlagen', e); }
+}
+
+let data = normalize(readJSON(LS_DATA, EMPTY()));
+let dirty = readJSON(LS_DIRTY, false);
+let cfg = Object.assign({ apiUrl: '', token: '' }, readJSON(LS_CFG, {}));
+const expanded = new Set();
+let highlightId = null;
+
+function normalize(d) {
+  const out = EMPTY();
+  if (!d || typeof d !== 'object') return out;
+  out.updatedAt = Number(d.updatedAt) || 0;
+  out.beans = (Array.isArray(d.beans) ? d.beans : []).filter(b => b && b.id && b.name).map(b => ({
+    id: String(b.id), name: String(b.name),
+    dose: toNum(b.dose), grind: toNum(b.grind),
+    roaster: b.roaster ? String(b.roaster) : '',
+    roastDate: b.roastDate ? String(b.roastDate) : '',
+    notes: b.notes ? String(b.notes) : '',
+    archived: !!b.archived,
+    createdAt: Number(b.createdAt) || 0,
+  }));
+  out.tags = (Array.isArray(d.tags) ? d.tags : []).filter(t => t && /^[a-z0-9-]{1,40}$/.test(t.id)).map(t => ({
+    id: t.id, label: t.label ? String(t.label) : t.id, beanId: t.beanId || null,
+  }));
+  return out;
+}
+
+function save() { writeJSON(LS_DATA, data); writeJSON(LS_DIRTY, dirty); }
+
+/** Jede Änderung läuft hierüber: lokal speichern, neu zeichnen, hochladen. */
+function commit() {
+  data.updatedAt = Date.now();
+  dirty = true;
+  save();
+  render();
+  schedulePush();
+}
+
+/* ---------- Hilfsfunktionen ---------- */
+const $ = (sel, el = document) => el.querySelector(sel);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+function toNum(v) {
+  if (v === null || v === undefined || v === '') return null;
+  const n = Number(String(v).trim().replace(',', '.'));
+  return Number.isFinite(n) ? n : null;
+}
+const fmt = n => (n === null || n === undefined || !Number.isFinite(Number(n))) ? '–' : Number(n).toLocaleString('de-DE', { maximumFractionDigits: 2 });
+const uid = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
+const round = n => Math.round(n * 100) / 100;
+
+function toast(msg) {
+  const t = $('#toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+function daysSince(dateStr) {
+  if (!dateStr) return null;
+  const d = new Date(dateStr + 'T00:00:00');
+  if (isNaN(d)) return null;
+  return Math.floor((Date.now() - d.getTime()) / 86400000);
+}
+
+function formatDate(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00');
+  return isNaN(d) ? dateStr : d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+function tagsOfBean(beanId) { return data.tags.filter(t => t.beanId === beanId); }
+
+/* ---------- Sync mit dem Worker ---------- */
+let pushTimer = null;
+let syncing = false;
+
+function hasSync() { return !!(cfg.apiUrl && cfg.token); }
+function apiBase() { return cfg.apiUrl.trim().replace(/\/+$/, ''); }
+
+function setSync(state, title) {
+  const dot = $('#syncDot');
+  dot.className = 'sync-dot ' + (state || '');
+  dot.title = title || '';
+}
+
+async function api(path, opts = {}) {
+  const headers = { Authorization: 'Bearer ' + cfg.token };
+  if (opts.body) headers['Content-Type'] = 'application/json';
+  const res = await fetch(apiBase() + path, { ...opts, headers, cache: 'no-store' });
+  if (!res.ok) throw new Error(res.status + ' ' + (await res.text()));
+  return res.json();
+}
+
+async function push() {
+  if (!hasSync()) return;
+  syncing = true;
+  setSync('pending', 'Wird gespeichert …');
+  try {
+    const snapshot = data.updatedAt;
+    await api('/data', { method: 'PUT', body: JSON.stringify(data) });
+    if (data.updatedAt === snapshot) { dirty = false; save(); }
+    setSync('ok', 'Synchronisiert');
+  } catch (e) {
+    setSync('error', 'Sync-Fehler: ' + e.message);
+  } finally {
+    syncing = false;
+  }
+}
+
+function schedulePush() {
+  if (!hasSync()) { setSync('', 'Nur lokal gespeichert'); return; }
+  setSync('pending', 'Änderung wartet auf Sync');
+  clearTimeout(pushTimer);
+  pushTimer = setTimeout(push, 600);
+}
+
+async function pull() {
+  if (!hasSync()) { setSync('', 'Nur lokal gespeichert'); return; }
+  if (syncing) return;
+  if (dirty) return push(); // lokale Änderungen zuerst hochladen
+  try {
+    setSync('pending', 'Lade …');
+    const remote = normalize(await api('/data'));
+    if (remote.updatedAt > data.updatedAt) { data = remote; save(); handleTagRoute(); render(); scrollToHighlight(); }
+    else if (remote.updatedAt < data.updatedAt && data.updatedAt > 0) { dirty = true; save(); return push(); }
+    setSync('ok', 'Synchronisiert');
+  } catch (e) {
+    setSync('error', 'Sync-Fehler: ' + e.message);
+  }
+}
+
+/* ---------- Ansichten ---------- */
+function route() {
+  const h = location.hash.replace(/^#\/?/, '');
+  if (h.startsWith('tag/')) return { name: 'tag', id: decodeURIComponent(h.slice(4)) };
+  if (h === 'dosen') return { name: 'tags' };
+  if (h === 'einstellungen') return { name: 'settings' };
+  return { name: 'list' };
+}
+
+function render() {
+  const r = route();
+  const current = { navHome: r.name === 'list' || r.name === 'tag', navTags: r.name === 'tags', navSettings: r.name === 'settings' };
+  for (const [id, on] of Object.entries(current)) {
+    on ? $('#' + id).setAttribute('aria-current', 'page') : $('#' + id).removeAttribute('aria-current');
+  }
+  $('#fab').hidden = r.name === 'settings';
+
+  if (r.name === 'tags') { $('#title').textContent = 'Dosen'; return renderTags(); }
+  if (r.name === 'settings') { $('#title').textContent = 'Einstellungen'; return renderSettings(); }
+  $('#title').textContent = 'Bohnen';
+  renderList();
+}
+
+function beanCard(b) {
+  const open = expanded.has(b.id);
+  const tags = tagsOfBean(b.id);
+  const age = daysSince(b.roastDate);
+  const rows = [];
+  if (b.roaster) rows.push(['Röster', esc(b.roaster)]);
+  if (b.roastDate) rows.push(['Röstdatum', esc(formatDate(b.roastDate)) + (age !== null && age >= 0 ? ` <span class="muted">(vor ${age} ${age === 1 ? 'Tag' : 'Tagen'})</span>` : '')]);
+  rows.push(['Dose', tags.length ? tags.map(t => esc(t.label)).join(', ') : '<span class="muted">keine</span>']);
+  if (b.notes) rows.push(['Notiz', esc(b.notes)]);
+
+  return `
+  <article class="bean${open ? ' open' : ''}${highlightId === b.id ? ' hl' : ''}" data-id="${esc(b.id)}">
+    <button class="bean-head" data-act="toggle" aria-expanded="${open}">
+      <span class="bean-name">${esc(b.name)}</span>
+      <span class="chev" aria-hidden="true">⌄</span>
+      <span class="vals">
+        <span class="val"><b>${fmt(b.dose)}</b><small>Gramm</small></span>
+        <span class="val"><b>${fmt(b.grind)}</b><small>Mahlgrad</small></span>
+      </span>
+    </button>
+    <div class="bean-more">
+      ${b.archived ? '' : `
+      <div class="stepper">
+        <div><button class="step-btn" data-act="dose-" aria-label="Gramm weniger">−</button><span>Gramm</span><button class="step-btn" data-act="dose+" aria-label="Gramm mehr">+</button></div>
+        <div><button class="step-btn" data-act="grind-" aria-label="Mahlgrad feiner">−</button><span>Mahlgrad</span><button class="step-btn" data-act="grind+" aria-label="Mahlgrad gröber">+</button></div>
+      </div>`}
+      <dl>${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>
+      <div class="row">
+        <button class="btn small" data-act="edit">Bearbeiten</button>
+        ${b.archived
+          ? '<button class="btn small" data-act="unarchive">Wieder aktivieren</button>'
+          : '<button class="btn small" data-act="archive">Aufgebraucht</button>'}
+      </div>
+    </div>
+  </article>`;
+}
+
+function renderList() {
+  const active = data.beans.filter(b => !b.archived).sort((a, b) => b.createdAt - a.createdAt);
+  const archived = data.beans.filter(b => b.archived).sort((a, b) => b.createdAt - a.createdAt);
+  let html = '';
+  if (!hasSync()) html += `<div class="banner">Sync ist noch nicht eingerichtet, die Daten liegen nur auf diesem Gerät. <a href="#/einstellungen">Jetzt einrichten</a></div>`;
+  if (!active.length) {
+    html += `<div class="empty"><div class="big">☕</div><p>Noch keine Bohnen.<br>Tippe auf <b>+</b>, um die erste anzulegen.</p></div>`;
+  } else {
+    html += active.map(beanCard).join('');
+  }
+  if (archived.length) {
+    html += `<details class="archive"><summary>Aufgebraucht (${archived.length})</summary>${archived.map(beanCard).join('')}</details>`;
+  }
+  $('#view').innerHTML = html;
+}
+
+function renderTags() {
+  const activeBeans = data.beans.filter(b => !b.archived);
+  const options = sel => `<option value="">— keine Bohne —</option>` +
+    activeBeans.map(b => `<option value="${esc(b.id)}"${b.id === sel ? ' selected' : ''}>${esc(b.name)}</option>`).join('');
+  let html = `<p class="muted">Jede Dose bekommt einen NFC-Tag. Hier legst du fest, welche Bohne gerade in welcher Dose ist. Der Kurzbefehl muss dafür nie geändert werden.</p>`;
+  if (!data.tags.length) html += `<div class="empty"><div class="big">📡</div><p>Noch keine Dosen angelegt.</p></div>`;
+  for (const t of data.tags) {
+    const url = hasSync() ? `${apiBase()}/n/${t.id}?k=${encodeURIComponent(cfg.token)}` : '';
+    html += `
+    <div class="card" data-tag="${esc(t.id)}">
+      <h3>${esc(t.label)}</h3>
+      <div class="muted">ID: <code>${esc(t.id)}</code></div>
+      <label>Bohne in dieser Dose</label>
+      <select data-act="assign">${options(t.beanId)}</select>
+      <div class="row" style="margin-top:12px">
+        ${url ? '<button class="btn small" data-act="copy-url">URL für Kurzbefehl kopieren</button>' : '<span class="muted">Für die Kurzbefehl-URL zuerst den Sync einrichten.</span>'}
+        <button class="btn small" data-act="rename">Umbenennen</button>
+        <button class="btn small danger" data-act="del-tag">Löschen</button>
+      </div>
+    </div>`;
+  }
+  html += `<button class="btn primary" data-act="add-tag" style="width:100%;margin-top:4px">+ Dose hinzufügen</button>`;
+  $('#view').innerHTML = html;
+}
+
+function renderSettings() {
+  $('#view').innerHTML = `
+    <div class="card">
+      <h2>Sync (Cloudflare Worker)</h2>
+      <p class="muted">Adresse und Token deines Workers. Damit sind die Daten überall gleich und der Kurzbefehl kann sie für die Mitteilung abrufen.</p>
+      <label for="sUrl">Worker-Adresse</label>
+      <input id="sUrl" inputmode="url" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="https://kaffee-api.DEINNAME.workers.dev" value="${esc(cfg.apiUrl)}">
+      <label for="sToken">Token</label>
+      <input id="sToken" type="password" autocapitalize="off" autocorrect="off" spellcheck="false" value="${esc(cfg.token)}">
+      <div class="row" style="margin-top:14px">
+        <button class="btn primary" data-act="save-cfg">Speichern &amp; verbinden</button>
+        <button class="btn" data-act="test-cfg">Verbindung testen</button>
+      </div>
+      <p class="muted" id="cfgStatus"></p>
+    </div>
+    <div class="card">
+      <h2>Backup</h2>
+      <p class="muted">Sicherung aller Bohnen und Dosen als JSON-Datei.</p>
+      <div class="row">
+        <button class="btn" data-act="export">Exportieren</button>
+        <button class="btn" data-act="import">Importieren</button>
+        <input type="file" id="importFile" accept="application/json,.json" hidden>
+      </div>
+    </div>
+    <p class="muted" style="text-align:center">${data.beans.length} Bohnen · ${data.tags.length} Dosen · Stand ${data.updatedAt ? new Date(data.updatedAt).toLocaleString('de-DE') : '–'}</p>`;
+}
+
+/* ---------- Formular ---------- */
+const dlg = $('#beanDialog');
+const form = $('#beanForm');
+let editingId = null;
+const F = { name: $('#fName'), dose: $('#fDose'), grind: $('#fGrind'), roaster: $('#fRoaster'), roastDate: $('#fRoastDate'), tag: $('#fTag'), notes: $('#fNotes') };
+
+function openForm(bean, presetTagId) {
+  editingId = bean ? bean.id : null;
+  $('#formTitle').textContent = bean ? 'Bohne bearbeiten' : 'Neue Bohne';
+  F.name.value = bean ? bean.name : '';
+  F.dose.value = bean && bean.dose !== null ? fmt(bean.dose) : '';
+  F.grind.value = bean && bean.grind !== null ? fmt(bean.grind) : '';
+  F.roaster.value = bean ? bean.roaster : '';
+  F.roastDate.value = bean ? bean.roastDate : '';
+  F.notes.value = bean ? bean.notes : '';
+  const currentTag = presetTagId || (bean ? (tagsOfBean(bean.id)[0] || {}).id : '') || '';
+  F.tag.innerHTML = `<option value="">— keine Dose —</option>` + data.tags.map(t => {
+    const occupant = t.beanId && t.beanId !== editingId ? data.beans.find(b => b.id === t.beanId && !b.archived) : null;
+    return `<option value="${esc(t.id)}"${t.id === currentTag ? ' selected' : ''}>${esc(t.label)}${occupant ? ' (aktuell: ' + esc(occupant.name) + ')' : ''}</option>`;
+  }).join('');
+  $('#fMore').open = !!(bean && (bean.roaster || bean.roastDate || bean.notes)) || !!presetTagId;
+  $('#formDeleteRow').hidden = !bean;
+  dlg.showModal();
+  if (!bean) setTimeout(() => F.name.focus(), 50);
+}
+
+form.addEventListener('submit', e => {
+  e.preventDefault();
+  const name = F.name.value.trim();
+  const dose = toNum(F.dose.value);
+  const grind = toNum(F.grind.value);
+  if (!name) return toast('Bitte einen Namen eingeben');
+  if (dose === null || dose <= 0 || dose > 100) return toast('Gramm bitte als Zahl, z. B. 18');
+  if (grind === null || grind < 0 || grind > 200) return toast('Mahlgrad bitte als Zahl, z. B. 12');
+
+  let bean = editingId ? data.beans.find(b => b.id === editingId) : null;
+  if (!bean) {
+    bean = { id: uid(), createdAt: Date.now(), archived: false };
+    data.beans.push(bean);
+  }
+  Object.assign(bean, {
+    name, dose: round(dose), grind: round(grind),
+    roaster: F.roaster.value.trim(),
+    roastDate: F.roastDate.value,
+    notes: F.notes.value.trim(),
+  });
+
+  // Dosen-Zuordnung: gewählte Dose zeigt auf diese Bohne, andere Dosen dieser Bohne werden frei
+  const tagId = F.tag.value;
+  for (const t of data.tags) {
+    if (t.id === tagId) t.beanId = bean.id;
+    else if (t.beanId === bean.id) t.beanId = null;
+  }
+
+  dlg.close();
+  commit();
+  toast(editingId ? 'Gespeichert' : 'Bohne angelegt');
+});
+
+$('#formCancel').addEventListener('click', () => dlg.close());
+$('#formDelete').addEventListener('click', () => {
+  const bean = data.beans.find(b => b.id === editingId);
+  if (!bean || !confirm(`„${bean.name}“ endgültig löschen?\nTipp: „Aufgebraucht“ archiviert stattdessen.`)) return;
+  data.beans = data.beans.filter(b => b.id !== editingId);
+  for (const t of data.tags) if (t.beanId === editingId) t.beanId = null;
+  dlg.close();
+  commit();
+  toast('Gelöscht');
+});
+dlg.addEventListener('click', e => { if (e.target === dlg) dlg.close(); });
+
+/* ---------- Klicks in der Ansicht ---------- */
+$('#fab').addEventListener('click', () => openForm(null));
+
+$('#view').addEventListener('click', async e => {
+  const btn = e.target.closest('[data-act]');
+  if (!btn) return;
+  const act = btn.dataset.act;
+  const card = btn.closest('.bean');
+  const bean = card ? data.beans.find(b => b.id === card.dataset.id) : null;
+  const tagEl = btn.closest('[data-tag]');
+  const tag = tagEl ? data.tags.find(t => t.id === tagEl.dataset.tag) : null;
+
+  if (act === 'toggle' && bean) {
+    expanded.has(bean.id) ? expanded.delete(bean.id) : expanded.add(bean.id);
+    highlightId = null;
+    return render();
+  }
+  if (/^(dose|grind)[+-]$/.test(act) && bean) {
+    const field = act.slice(0, -1);
+    const delta = act.endsWith('+') ? 0.5 : -0.5;
+    bean[field] = Math.max(0, round((bean[field] || 0) + delta));
+    return commit();
+  }
+  if (act === 'edit' && bean) return openForm(bean);
+  if (act === 'archive' && bean) {
+    bean.archived = true;
+    for (const t of data.tags) if (t.beanId === bean.id) t.beanId = null;
+    expanded.delete(bean.id);
+    commit();
+    return toast('Als aufgebraucht markiert, Dose ist frei');
+  }
+  if (act === 'unarchive' && bean) { bean.archived = false; commit(); return toast('Wieder aktiv'); }
+
+  if (act === 'add-tag') {
+    const n = data.tags.length + 1;
+    const label = prompt('Name der Dose (z. B. „Dose links“):', 'Dose ' + n);
+    if (label === null) return;
+    let base = label.trim().toLowerCase()
+      .replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss')
+      .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 30) || 'dose-' + n;
+    let id = base, i = 2;
+    while (data.tags.some(t => t.id === id)) id = base + '-' + i++;
+    data.tags.push({ id, label: label.trim() || id, beanId: null });
+    commit();
+    return toast('Dose angelegt');
+  }
+  if (act === 'rename' && tag) {
+    const label = prompt('Neuer Name der Dose:', tag.label);
+    if (!label || !label.trim()) return;
+    tag.label = label.trim();
+    return commit();
+  }
+  if (act === 'del-tag' && tag) {
+    if (!confirm(`Dose „${tag.label}“ löschen?\nDie Kurzbefehl-Automation für diesen Tag funktioniert danach nicht mehr.`)) return;
+    data.tags = data.tags.filter(t => t.id !== tag.id);
+    return commit();
+  }
+  if (act === 'copy-url' && tag) {
+    const url = `${apiBase()}/n/${tag.id}?k=${encodeURIComponent(cfg.token)}`;
+    try { await navigator.clipboard.writeText(url); toast('URL kopiert'); }
+    catch { prompt('URL kopieren:', url); }
+    return;
+  }
+
+  if (act === 'save-cfg' || act === 'test-cfg') {
+    const status = $('#cfgStatus');
+    const candidate = { apiUrl: $('#sUrl').value.trim(), token: $('#sToken').value.trim() };
+    if (!/^(https:\/\/|http:\/\/(localhost|127\.0\.0\.1)(:|\/|$))/.test(candidate.apiUrl)) { status.textContent = 'Die Adresse muss mit https:// beginnen.'; return; }
+    if (!candidate.token) { status.textContent = 'Bitte den Token eintragen.'; return; }
+    status.textContent = 'Teste Verbindung …';
+    const prev = cfg;
+    cfg = candidate;
+    try {
+      const remote = normalize(await api('/data'));
+      if (act === 'test-cfg') {
+        cfg = prev;
+        status.textContent = `✓ Verbindung klappt. Im Worker: ${remote.beans.length} Bohnen, ${remote.tags.length} Dosen.`;
+        return;
+      }
+      writeJSON(LS_CFG, cfg);
+      // Erste Verbindung: was neuer ist, gewinnt. Hat der Worker noch nichts, werden lokale Daten hochgeladen.
+      if (remote.updatedAt > data.updatedAt) { data = remote; dirty = false; save(); }
+      else if (data.updatedAt > 0) { dirty = true; save(); await push(); }
+      status.textContent = '✓ Gespeichert und verbunden.';
+      setSync('ok', 'Synchronisiert');
+      toast('Sync aktiv');
+    } catch (err) {
+      cfg = prev;
+      status.textContent = '✗ ' + (String(err.message).startsWith('401') ? 'Token falsch.' : 'Keine Verbindung: ' + err.message);
+    }
+    return;
+  }
+  if (act === 'export') {
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const name = `kaffeebohnen-${new Date().toISOString().slice(0, 10)}.json`;
+    const file = new File([blob], name, { type: 'application/json' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try { await navigator.share({ files: [file], title: name }); } catch { /* abgebrochen */ }
+    } else {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = name; a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    }
+    return;
+  }
+  if (act === 'import') return $('#importFile').click();
+});
+
+$('#view').addEventListener('change', async e => {
+  if (e.target.matches('select[data-act="assign"]')) {
+    const tag = data.tags.find(t => t.id === e.target.closest('[data-tag]').dataset.tag);
+    if (!tag) return;
+    tag.beanId = e.target.value || null;
+    commit();
+    return toast('Zuordnung gespeichert');
+  }
+  if (e.target.id === 'importFile') {
+    const f = e.target.files[0];
+    if (!f) return;
+    try {
+      const parsed = JSON.parse(await f.text());
+      if (!Array.isArray(parsed.beans) || !Array.isArray(parsed.tags)) throw new Error('Kein gültiges Backup');
+      const imported = normalize(parsed);
+      if (!confirm(`Backup mit ${imported.beans.length} Bohnen und ${imported.tags.length} Dosen einspielen?\nDer aktuelle Stand wird ersetzt.`)) return;
+      data = imported;
+      commit();
+      toast('Backup eingespielt');
+    } catch (err) {
+      toast('Import fehlgeschlagen: ' + err.message);
+    } finally {
+      e.target.value = '';
+    }
+  }
+});
+
+/* ---------- Deep-Link #/tag/<id> ---------- */
+function handleTagRoute() {
+  const r = route();
+  if (r.name !== 'tag') { highlightId = null; return; }
+  const tag = data.tags.find(t => t.id === r.id);
+  const bean = tag && data.beans.find(b => b.id === tag.beanId && !b.archived);
+  if (!data.updatedAt && hasSync()) return; // Daten kommen gleich vom Worker
+  if (!tag) toast(`Unbekannte Dose „${r.id}“`);
+  else if (!bean) toast(`${tag.label}: keine Bohne zugeordnet`);
+  else { expanded.add(bean.id); highlightId = bean.id; }
+}
+
+window.addEventListener('hashchange', () => { handleTagRoute(); render(); scrollToHighlight(); });
+function scrollToHighlight() {
+  if (!highlightId) return;
+  const el = document.querySelector(`.bean[data-id="${CSS.escape(highlightId)}"]`);
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+/* ---------- Start ---------- */
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') pull(); });
+window.addEventListener('online', pull);
+
+handleTagRoute();
+render();
+scrollToHighlight();
+pull();
+
+if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+}
+</script>
+</body>
+</html>
