@@ -208,6 +208,15 @@
   .dialog-actions { display: flex; gap: 10px; margin-top: 20px; }
   .dialog-actions .btn { flex: 1; padding: 13px; }
 
+  .app-version { text-align: center; color: var(--muted); font-size: 13px; padding: 8px 16px 0; }
+  .update-bar {
+    position: fixed; left: 12px; right: 12px; bottom: calc(100px + var(--safe-bottom)); z-index: 40;
+    max-width: 616px; margin: 0 auto; display: flex; align-items: center; gap: 12px;
+    background: var(--surface); border: 1px solid var(--accent); border-radius: 16px; padding: 10px 10px 10px 16px;
+    box-shadow: 0 10px 28px var(--shadow); font-size: 15px;
+  }
+  .update-bar span { flex: 1; }
+  .update-bar[hidden] { display: none; }
   .toast {
     position: fixed; left: 50%; bottom: calc(100px + var(--safe-bottom)); transform: translateX(-50%) translateY(20px);
     background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 12px; font-size: 15px;
@@ -229,6 +238,11 @@
 </header>
 
 <main id="view"></main>
+<footer class="app-version" id="appVersion"></footer>
+<div class="update-bar" id="updateBar" hidden>
+  <span id="updateText">Neue Version verfügbar</span>
+  <button class="btn primary small" id="updateBtn">Neu laden</button>
+</div>
 
 <button class="fab" id="fab" aria-label="Neue Bohne">+</button>
 
@@ -407,6 +421,32 @@ function schedulePush() {
   clearTimeout(pushTimer);
   pushTimer = setTimeout(push, 600);
 }
+
+/* ---------- Version & Update-Hinweis ---------- */
+// Bei jedem Update hier, in version.json und in sw.js (CACHE) dieselbe Nummer eintragen.
+const APP_VERSION = '1.3';
+$('#appVersion').textContent = `BeANKSY · Version ${APP_VERSION}`;
+async function checkVersion() {
+  try {
+    const res = await fetch('version.json?t=' + Date.now(), { cache: 'no-store' });
+    if (!res.ok) return;
+    const { version } = await res.json();
+    if (version && version !== APP_VERSION) {
+      $('#updateText').textContent = `Neue Version ${version} verfügbar (du hast ${APP_VERSION})`;
+      $('#updateBar').hidden = false;
+      $('#appVersion').textContent = `BeANKSY · Version ${APP_VERSION} · neu: ${version}`;
+    }
+  } catch {}
+}
+$('#updateBtn').addEventListener('click', async () => {
+  $('#updateBtn').disabled = true;
+  try {
+    const reg = navigator.serviceWorker && await navigator.serviceWorker.getRegistration();
+    if (reg) await reg.update().catch(() => {});
+    if (window.caches) for (const k of await caches.keys()) await caches.delete(k);
+  } catch {}
+  location.reload();
+});
 
 async function pull() {
   if (!hasSync()) { setSync('', 'Nur lokal gespeichert'); return; }
@@ -801,7 +841,7 @@ function scrollToHighlight() {
 }
 
 /* ---------- Start ---------- */
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') pull(); });
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { pull(); checkVersion(); } });
 window.addEventListener('online', pull);
 
 syncThemeColor();
@@ -809,6 +849,7 @@ handleTagRoute();
 render();
 scrollToHighlight();
 pull();
+checkVersion();
 
 if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
 if ('serviceWorker' in navigator) {

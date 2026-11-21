@@ -1,6 +1,6 @@
 // Service Worker: hält die App offline verfügbar.
-// Bei Änderungen an der App die Versionsnummer erhöhen.
-const CACHE = 'beanksy-v3';
+// Bei Änderungen an der App die Versionsnummer erhöhen (gleich wie APP_VERSION in index.html und version.json).
+const CACHE = 'beanksy-1.3';
 const SHELL = [
   './',
   './index.html',
@@ -27,6 +27,8 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(req.url);
   // Nur eigene Dateien; Anfragen an den Worker (Sync) laufen immer direkt ins Netz.
   if (req.method !== 'GET' || url.origin !== self.location.origin) return;
+  // Versionsdatei immer frisch aus dem Netz
+  if (url.pathname.endsWith('/version.json')) return;
 
   if (req.mode === 'navigate') {
     // Seite: erst Netz (für Updates), offline aus dem Cache

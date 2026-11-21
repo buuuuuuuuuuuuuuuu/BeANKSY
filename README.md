@@ -96,7 +96,7 @@ Das machst du **einmal pro NFC-Tag**, danach nie wieder.
 - **Offline:** Die App zeigt den zuletzt geladenen Stand auch ohne Netz. Änderungen werden hochgeladen, sobald wieder Netz da ist. Der Punkt ist gelb, solange etwas wartet, und rot bei einem Fehler. Für die Mitteilung braucht das iPhone Netz.
 - **Backup:** Unter *Einstellungen → Exportieren* erzeugst du eine JSON-Datei, die du über *Importieren* wieder einspielen kannst.
 - **Token wechseln** (z. B. wenn ein Screenshot mit URL herumging): Neuen Token in Cloudflare unter `TOKEN` eintragen, dann in der App unter Einstellungen und neu in jede Kurzbefehl-Automation.
-- **App-Updates:** Nach Änderungen an den Dateien in `sw.js` die Zeile `const CACHE = 'beanksy-v3'` hochzählen (`v4`, `v5` …), damit das iPhone die neue Version lädt.
+- **App-Updates:** Bei jeder Änderung die Versionsnummer an drei Stellen gleich hochzählen: `APP_VERSION` in `index.html`, `version.json` und `CACHE` in `sw.js` (z. B. `1.3` → `1.4`). Die App zeigt ihre Version ganz unten an. Ist online eine neuere Version, erscheint der Hinweis „Neu laden“.
 - **Kosten:** Der Free-Plan von Cloudflare reicht weit. Jeder NFC-Scan ist ein Lesezugriff, jede Änderung ein Schreibzugriff.
 
 ## Schnittstelle (für später)
