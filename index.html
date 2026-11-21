@@ -8,7 +8,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Bohnen">
+<meta name="apple-mobile-web-app-title" content="BeANKSY">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
@@ -217,9 +217,17 @@
 'use strict';
 
 /* ---------- Speicher & Zustand ---------- */
-const LS_DATA = 'kaffee.data';
-const LS_DIRTY = 'kaffee.dirty';
-const LS_CFG = 'kaffee.cfg';
+const LS_DATA = 'beanksy.data';
+const LS_DIRTY = 'beanksy.dirty';
+const LS_CFG = 'beanksy.cfg';
+// Daten aus der Zeit vor der Umbenennung (kaffee.*) einmalig übernehmen
+try {
+  for (const k of ['data', 'dirty', 'cfg']) {
+    const old = localStorage.getItem('kaffee.' + k);
+    if (old !== null && localStorage.getItem('beanksy.' + k) === null) localStorage.setItem('beanksy.' + k, old);
+    localStorage.removeItem('kaffee.' + k);
+  }
+} catch {}
 const EMPTY = () => ({ version: 1, updatedAt: 0, beans: [], tags: [] });
 
 function readJSON(key, fallback) {
@@ -377,7 +385,7 @@ function render() {
 
   if (r.name === 'tags') { $('#title').textContent = 'Dosen'; return renderTags(); }
   if (r.name === 'settings') { $('#title').textContent = 'Einstellungen'; return renderSettings(); }
-  $('#title').textContent = 'Bohnen';
+  $('#title').textContent = 'BeANKSY';
   renderList();
 }
 
@@ -651,7 +659,7 @@ $('#view').addEventListener('click', async e => {
   }
   if (act === 'export') {
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const name = `kaffeebohnen-${new Date().toISOString().slice(0, 10)}.json`;
+    const name = `beanksy-${new Date().toISOString().slice(0, 10)}.json`;
     const file = new File([blob], name, { type: 'application/json' });
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
       try { await navigator.share({ files: [file], title: name }); } catch { /* abgebrochen */ }

@@ -1,12 +1,12 @@
 /**
- * Kaffee-API – Cloudflare Worker
+ * BeANKSY-API – Cloudflare Worker
  *
  * Benötigt im Cloudflare-Dashboard:
- *   - KV-Binding mit dem Variablennamen  KAFFEE
+ *   - KV-Binding mit dem Variablennamen  BeANKSY
  *   - Secret (verschlüsselte Variable)   TOKEN   = dein geheimer Schlüssel
  *
  * Endpunkte (alle außer "/" brauchen den Token):
- *   GET  /            -> "Kaffee-API läuft" (Funktionstest, ohne Token)
+ *   GET  /            -> "BeANKSY-API läuft" (Funktionstest, ohne Token)
  *   GET  /data        -> kompletter Datenstand als JSON
  *   PUT  /data        -> kompletten Datenstand speichern (JSON)
  *   GET  /n/<dose-id> -> Klartext für die iPhone-Mitteilung
@@ -82,7 +82,7 @@ function validate(data) {
 }
 
 async function load(env) {
-  const raw = await env.KAFFEE.get(KEY);
+  const raw = await env.BeANKSY.get(KEY);
   if (!raw) return { ...EMPTY };
   try {
     return JSON.parse(raw);
@@ -98,10 +98,10 @@ export default {
 
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
 
-    if (path === '/' && request.method === 'GET') return text('Kaffee-API läuft ☕');
+    if (path === '/' && request.method === 'GET') return text('BeANKSY-API läuft ☕');
 
     if (!env.TOKEN) return text('TOKEN ist im Worker nicht gesetzt.', 500);
-    if (!env.KAFFEE) return text('KV-Binding KAFFEE fehlt.', 500);
+    if (!env.BeANKSY) return text('KV-Binding BeANKSY fehlt.', 500);
 
     const auth = request.headers.get('Authorization') || '';
     const token = auth.replace(/^Bearer\s+/i, '').trim() || url.searchParams.get('k') || '';
@@ -122,7 +122,7 @@ export default {
         const err = validate(data);
         if (err) return text(err, 400);
         data.updatedAt = Number(data.updatedAt) || Date.now();
-        await env.KAFFEE.put(KEY, JSON.stringify(data));
+        await env.BeANKSY.put(KEY, JSON.stringify(data));
         return json({ ok: true, updatedAt: data.updatedAt });
       }
       return text('Methode nicht erlaubt', 405);
