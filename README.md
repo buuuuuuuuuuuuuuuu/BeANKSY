@@ -5,7 +5,7 @@ Persönliche Kaffeebohnen-App fürs iPhone, abgestimmt auf die Mühle DF54.
 **Ablauf:** iPhone an den NFC-Tag der Dose halten. BeANKSY öffnet sich direkt mit der aufgeklappten Kachel der Bohne in dieser Dose: Name, Gramm und Mahlgrad groß, dazu Röster, Röstdatum, Notiz und Bezüge. Dort kannst du auch die Bohne in der Dose wechseln.
 
 - **App:** https://buuuuuuuuuuuuuuuu.github.io/BeANKSY/
-- **Aktuelle Version:** 2.7 (steht auch ganz unten in der App)
+- **Aktuelle Version:** 2.8 (steht auch ganz unten in der App)
 
 ---
 
@@ -19,7 +19,8 @@ Persönliche Kaffeebohnen-App fürs iPhone, abgestimmt auf die Mühle DF54.
 | Sortierung | Neueste, A–Z oder Häufigste (nach Zahl der NFC-Scans). Die Auswahl bleibt gespeichert. |
 | Aufgebraucht | Die Bohne wandert ins Archiv unten in der Liste, und ihre Dose wird frei. Mit *Wieder aktivieren* holst du sie zurück. |
 | Dosen | Jeder NFC-Tag steht für eine Dose. Der Scan öffnet die App direkt mit der aufgeklappten Kachel der Bohne in dieser Dose. Dort wechselst du über „Bohne in … wechseln“ die Bohne. In der Dosen-Liste ist die zuletzt gescannte Dose markiert, dort kopierst du auch den Link für den Kurzbefehl. |
-| Sync | Über deinen Cloudflare Worker. Der Punkt neben dem Titel zeigt den Stand: grün = synchron, gelb = wartet, rot = Fehler, grau = nur lokal. |
+| Sync | Über deinen Cloudflare Worker. Der Punkt neben dem Titel zeigt den Stand: grün = synchron, gelb = wartet, rot = Fehler, grau = nur lokal. Haben zwei Geräte (oder Safari und die App auf dem Home-Bildschirm) gleichzeitig etwas geändert, führt die App beides zusammen, statt etwas zu überschreiben. |
+| Sicherungen | Der Worker hebt jeden Tag den Stand vor der ersten Änderung auf, 30 Tage lang. Unter *Einstellungen → Sicherungen im Worker* holst du einen älteren Stand zurück. |
 | Darstellung | Zwei Looks: Hell heißt „Skala“ (warmes Papier, Mono-Ziffern, Mahlgrad-Lineal, Signal-Orange), Dunkel heißt „Nachtröstung“ (Espresso-Braun, Serifenschrift, runder Mahlgrad-Regler, Crema-Akzent). Oben steht groß die zuletzt per NFC gescannte Bohne. Unter *Einstellungen → Darstellung* wählst du Auto (folgt dem iPhone), Hell oder Dunkel. |
 | Updates | Gibt es eine neuere Version, erscheint unten der Hinweis **Neu laden**. |
 | Backup | *Einstellungen → Exportieren / Importieren* als JSON-Datei. Ein Import ersetzt den aktuellen Stand. |
@@ -94,7 +95,7 @@ Mehr braucht es nicht. Die App zählt den Scan selbst beim Worker (Bezüge, gro�
 
 **Bohne in der Dose wechseln:** In der aufgeklappten Kachel auf **„Bohne in Dose 1 wechseln“** tippen. Dort tippst du eine andere Bohne an, legst mit **+ Neue Bohne in diese Dose** eine neue an oder markierst die alte als **aufgebraucht**. Ist eine gescannte Dose leer oder noch unbekannt, öffnet sich diese Auswahl direkt.
 
-**Hast du die Automation schon mit „Inhalte von URL abrufen“ und „Mitteilung anzeigen“ eingerichtet?** Lösch diese beiden Aktionen und nimm nur noch „URLs öffnen“. Sonst wird jeder Scan doppelt gezählt. Die Mitteilungs-URL gibt es weiterhin (Dosen → „Mitteilungs-URL (optional)“), falls du irgendwo nur den Text brauchst.
+**Hast du die Automation schon mit „Inhalte von URL abrufen“ und „Mitteilung anzeigen“ eingerichtet?** Lösch diese beiden Aktionen und nimm nur noch „URLs öffnen“. Sonst wird jeder Scan doppelt gezählt.
 
 **Gut zu wissen:** iOS öffnet den Link in Safari, nicht in der App auf dem Home-Bildschirm. Das ist kein Problem: Der Link bringt die Sync-Daten mit, Änderungen landen sofort im Worker, und die App auf dem Home-Bildschirm zeigt sie beim nächsten Öffnen. Der Link enthält deinen Token, behandle ihn wie ein Passwort.
 
@@ -121,7 +122,7 @@ Mehr braucht es nicht. Die App zählt den Scan selbst beim Worker (Bezüge, gro�
 
 - **Version hochzählen:** Bei jeder Änderung trägst du an drei Stellen dieselbe neue Nummer ein: `APP_VERSION` in `index.html`, `version.json` und `CACHE` in `sw.js` (z. B. `1.5` → `1.6`). Nur dann lädt das iPhone die neue Version und zeigt den Hinweis „Neu laden“.
 - **Worker geändert?** Den neuen Code musst du von Hand bei Cloudflare einfügen (*Edit code → Deploy*). GitHub aktualisiert den Worker nicht automatisch.
-- **Gespeichert im Browser** (`localStorage`): `beanksy.data` (Bohnen und Dosen), `beanksy.cfg` (Worker-Adresse und Token), `beanksy.uses` (Zähler), `beanksy.lastScan` (letzter Scan über den App-Link `#/tag/…`), `beanksy.sort`, `beanksy.theme`.
+- **Gespeichert im Browser** (`localStorage`): `beanksy.data` (Bohnen und Dosen), `beanksy.cfg` (Worker-Adresse und Token), `beanksy.uses` (Zähler), `beanksy.lastScan` (letzter Scan über den App-Link `#/tag/…`), `beanksy.syncedAt` (Stand des Workers beim letzten Sync, für den Konfliktschutz), `beanksy.sort`, `beanksy.theme`.
 
 ### Datenmodell
 
@@ -131,12 +132,13 @@ Mehr braucht es nicht. Die App zählt den Scan selbst beim Worker (Bezüge, gro�
   "updatedAt": 1763740000000,
   "beans": [{ "id": "…", "name": "Ethiopia Guji", "dose": 18, "grind": 12.5,
                "roaster": "", "roastDate": "2026-11-01", "notes": "",
-               "archived": false, "createdAt": 1763740000000 }],
-  "tags":  [{ "id": "dose-1", "label": "Dose 1", "beanId": "…" }]
+               "archived": false, "createdAt": 1763740000000, "u": 1763740000000 }],
+  "tags":  [{ "id": "dose-1", "label": "Dose 1", "beanId": "…", "u": 1763740000000 }],
+  "deleted": { "beans": { "<bohnen-id>": 1763740000000 }, "tags": {} }
 }
 ```
 
-Es wird immer der ganze Stand synchronisiert, der neuere `updatedAt` gewinnt. Die Bezüge liegen getrennt im KV-Schlüssel `uses` als `{ "<bohnen-id>": { "n": 12, "last": 1763740000000 }, "_last": { "tag": "dose-2", "bean": "<bohnen-id>", "at": 1763740000000 } }` (`_last` ist die zuletzt gescannte Dose für die große Kachel), damit der Sync sie nie überschreibt.
+Es wird immer der ganze Stand synchronisiert. Beim Hochladen schickt die App mit `?base=` mit, welchen Stand des Workers sie zuletzt kannte. Ist der Worker inzwischen weiter, antwortet er mit 409 und seinem Stand, und die App führt beide zusammen: Pro Bohne und Dose gewinnt die jüngere Änderung (`u`), und was in `deleted` steht (90 Tage lang), bleibt gelöscht. Die Bezüge liegen getrennt im KV-Schlüssel `uses` als `{ "<bohnen-id>": { "n": 12, "last": 1763740000000 }, "_last": { "tag": "dose-2", "bean": "<bohnen-id>", "at": 1763740000000 } }` (`_last` ist die zuletzt gescannte Dose für die große Kachel), damit der Sync sie nie überschreibt.
 
 ### Schnittstelle des Workers
 
@@ -146,14 +148,17 @@ Alle Aufrufe außer `GET /` brauchen den Token, entweder als Header `Authorizati
 |---|---|
 | `GET /` | Funktionstest, ohne Token |
 | `GET /data` | Alle Daten als JSON |
-| `PUT /data` | Alle Daten speichern |
-| `GET /n/<dose-id>` | Mitteilungstext (Name, Gramm, Mahlgrad), zählt den Scan als Bezug |
+| `PUT /data?base=<updatedAt>` | Alle Daten speichern. Ist der gespeicherte Stand neuer als `base`, kommt 409 mit dem aktuellen Stand zurück. Vor der ersten Änderung des Tages legt der Worker eine Sicherung an. |
+| `GET /n/<dose-id>` | Zählt den Scan als Bezug (die App ruft das beim Öffnen eines Dosen-Links auf) und liefert den alten Mitteilungstext |
 | `GET /uses` | Bezüge pro Bohne und zuletzt gescannte Dose |
+| `GET /backups` | Liste der Tagessicherungen (neueste zuerst) |
+| `GET /backup/<JJJJ-MM-TT>` | Eine Tagessicherung |
 
 ## Versionen
 
 | Version | Datum | Änderungen |
 |---|---|---|
+| 2.8 | 21.11.2026 | Konfliktschutz beim Sync (Änderungen werden zusammengeführt statt überschrieben), Tagessicherungen im Worker mit Zurückholen in den Einstellungen (neuer Worker-Code nötig); Knopf „Mitteilungs-URL“ entfernt; dunkler Look markiert die zuletzt gescannte Bohne; Strich-Symbol statt Emoji für „Bohnen“; Lupe im hellen Look in passender Farbe; Hinweise rutschen über die Update-Leiste; Gramm-Stepper geht nicht mehr auf 0 |
 | 2.7 | 21.11.2026 | Fehlerkorrekturen aus dem Code-Check: Neuladen oder ein wiederhergestellter Safari-Tab zählt keinen zweiten Scan mehr, ein Dosen-Link mit ungültiger ID kann den Sync nicht mehr blockieren, eigener Dialog statt Systemdialog beim Kopieren, der Offline-Speicher merkt sich keine Fehlerseiten mehr |
 | 2.6 | 21.11.2026 | Löschen und Umbenennen von Dosen (und Bohnen) mit eigener Rückfrage statt Systemdialog, der auf dem iPhone nicht zuverlässig kam; „Dose löschen“ auch in der Dosen-Ansicht nach dem Scan |
 | 2.5 | 21.11.2026 | Aufgeklappte Kachel rutscht automatisch nach oben unter die Kopfzeile |
