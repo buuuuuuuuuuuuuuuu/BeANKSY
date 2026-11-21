@@ -210,6 +210,10 @@
 
   .app-version { text-align: center; color: var(--muted); font-size: 13px; padding: 8px 16px 0; }
   .seg.sort { margin-bottom: 12px; }
+  .search { margin-bottom: 10px; }
+  .search input { padding-left: 40px; background: var(--surface-2) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238fa3aa' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-3.5-3.5'/%3E%3C/svg%3E") no-repeat 12px center / 20px; }
+  .bean[hidden] { display: none; }
+  .no-hits { text-align: center; padding: 24px 0; }
   .sort-hint { margin: -4px 4px 12px; }
   .update-bar {
     position: fixed; left: 12px; right: 12px; bottom: calc(100px + var(--safe-bottom)); z-index: 40;
@@ -315,6 +319,7 @@ let dirty = readJSON(LS_DIRTY, false);
 let cfg = Object.assign({ apiUrl: '', token: '' }, readJSON(LS_CFG, {}));
 let uses = readJSON('beanksy.uses', {});          // Bezüge pro Bohne (NFC-Scans), kommt vom Worker
 let sortMode = readJSON('beanksy.sort', 'new');   // new | alpha | uses
+let searchQuery = '';                              // Live-Suche, nur für diese Sitzung
 const expanded = new Set();
 let highlightId = null;
 
@@ -428,7 +433,7 @@ function schedulePush() {
 
 /* ---------- Version & Update-Hinweis ---------- */
 // Bei jedem Update hier, in version.json und in sw.js (CACHE) dieselbe Nummer eintragen.
-const APP_VERSION = '1.4';
+const APP_VERSION = '1.5';
 $('#appVersion').textContent = `BeANKSY · Version ${APP_VERSION}`;
 async function checkVersion() {
   try {
@@ -462,6 +467,25 @@ async function pullUses() {
   } catch {} // älterer Worker ohne /uses: einfach ohne Zähler weiter
 }
 const useCount = id => (uses[id] && Number(uses[id].n)) || 0;
+// Für die Suche: klein, ohne Akzente/Umlaute-Punkte (ä → a), damit „athiopien“ auch „Äthiopien“ findet
+const fold = str => String(str || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/ß/g, 'ss');
+function applySearch() {
+  const words = fold(searchQuery).split(/\s+/).filter(Boolean);
+  let shown = 0;
+  document.querySelectorAll('#view .bean').forEach(el => {
+    const hit = words.every(w => el.dataset.search.includes(w));
+    el.hidden = !hit;
+    if (hit && !el.closest('details.archive')) shown++;
+  });
+  const arch = document.querySelector('details.archive');
+  if (arch) {
+    const archHits = arch.querySelectorAll('.bean:not([hidden])').length;
+    arch.hidden = words.length > 0 && archHits === 0;
+    if (words.length && archHits) arch.open = true;
+  }
+  const none = $('#noHits');
+  if (none) { none.hidden = !(words.length && shown === 0); $('#noHitsQ').textContent = searchQuery; }
+}
 function sortBeans(list) {
   const byName = (a, b) => a.name.localeCompare(b.name, 'de', { sensitivity: 'base' });
   if (sortMode === 'alpha') return list.sort(byName);
@@ -520,7 +544,7 @@ function beanCard(b) {
   if (useCount(b.id)) rows.push(['Bezüge', `${useCount(b.id)} <span class="muted">(per NFC gezählt)</span>`]);
 
   return `
-  <article class="bean${open ? ' open' : ''}${highlightId === b.id ? ' hl' : ''}" data-id="${esc(b.id)}">
+  <article class="bean${open ? ' open' : ''}${highlightId === b.id ? ' hl' : ''}" data-id="${esc(b.id)}" data-search="${esc(fold([b.name, b.roaster, b.notes, ...tags.map(t => t.label)].join(' ')))}">
     <button class="bean-head" data-act="toggle" aria-expanded="${open}">
       <span class="bean-name">${esc(b.name)}</span>
       <span class="chev" aria-hidden="true">⌄</span>
@@ -554,16 +578,18 @@ function renderList() {
   if (!active.length) {
     html += `<div class="empty"><div class="big">☕</div><p>Noch keine Bohnen.<br>Tippe auf <b>+</b>, um die erste anzulegen.</p></div>`;
   } else {
+    html += `<div class="search"><input id="search" type="search" placeholder="Bohne suchen …" value="${esc(searchQuery)}" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="search" aria-label="Bohnen suchen"></div>`;
     html += `<div class="seg sort" role="group" aria-label="Sortierung">
       ${[['new', 'Neueste'], ['alpha', 'A–Z'], ['uses', 'Häufigste']].map(([v, l]) => `<button data-act="sort" data-v="${v}" aria-pressed="${sortMode === v}">${l}</button>`).join('')}
     </div>`;
     if (sortMode === 'uses' && !active.some(b => useCount(b.id))) html += `<p class="muted sort-hint">Noch keine Bezüge gezählt. Jeder NFC-Scan an einer Dose zählt als ein Bezug${hasSync() ? '' : ' (dafür muss der Sync eingerichtet sein)'}.</p>`;
-    html += `<div class="grid">${active.map(beanCard).join('')}</div>`;
+    html += `<div class="grid">${active.map(beanCard).join('')}</div><p class="muted no-hits" id="noHits" hidden>Keine Bohne passt zu „<span id="noHitsQ"></span>“.</p>`;
   }
   if (archived.length) {
     html += `<details class="archive"><summary>Aufgebraucht (${archived.length})</summary><div class="grid">${archived.map(beanCard).join('')}</div></details>`;
   }
   $('#view').innerHTML = html;
+  applySearch();
 }
 
 function renderTags() {
@@ -714,6 +740,12 @@ dlg.addEventListener('click', e => { if (e.target === dlg) dlg.close(); });
 
 /* ---------- Klicks in der Ansicht ---------- */
 $('#fab').addEventListener('click', () => openForm(null));
+
+$('#view').addEventListener('input', e => {
+  if (e.target.id !== 'search') return;
+  searchQuery = e.target.value;
+  applySearch();
+});
 
 $('#view').addEventListener('click', async e => {
   const btn = e.target.closest('[data-act]');
