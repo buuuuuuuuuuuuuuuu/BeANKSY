@@ -5,7 +5,7 @@ Persönliche Kaffeebohnen-App fürs iPhone, abgestimmt auf die Mühle DF54.
 **Ablauf:** iPhone an den NFC-Tag der Dose halten. BeANKSY öffnet sich direkt mit der aufgeklappten Kachel der Bohne in dieser Dose: Name, Gramm und Mahlgrad groß, dazu Röster, Röstdatum, Notiz und Bezüge. Dort kannst du auch die Bohne in der Dose wechseln.
 
 - **App:** https://buuuuuuuuuuuuuuuu.github.io/BeANKSY/
-- **Aktuelle Version:** 2.8 (steht auch ganz unten in der App)
+- **Aktuelle Version:** 2.9 (steht auch ganz unten in der App)
 
 ---
 
@@ -14,7 +14,7 @@ Persönliche Kaffeebohnen-App fürs iPhone, abgestimmt auf die Mühle DF54.
 | Bereich | Was die App kann |
 |---|---|
 | Bohnen | Je zwei Kacheln nebeneinander mit Name, Gramm pro Shot und Mahlgrad. Antippen klappt eine Kachel über die volle Breite auf. |
-| Aufgeklappt | −/+ in 0,5er-Schritten für Gramm und Mahlgrad, dazu Röster, Röstdatum mit Alter, Dose, Notiz und die Zahl der Bezüge per NFC. Außerdem *Bearbeiten* und *Aufgebraucht*. |
+| Aufgeklappt | −/+ in 0,1er-Schritten für Gramm und 0,5er-Schritten für Mahlgrad, dazu Röster, Röstdatum mit Alter, Dose, Notiz und die Zahl der Bezüge per NFC. Außerdem *Bearbeiten* und *Aufgebraucht*. |
 | Suche | Das Suchfeld filtert die Liste schon beim Tippen. Es sucht in Name, Röster, Notiz und Dose, ohne auf Groß/Klein oder Umlaute zu achten („athiopien“ findet „Äthiopien“). Mehrere Wörter müssen alle passen. |
 | Sortierung | Neueste, A–Z oder Häufigste (nach Zahl der NFC-Scans). Die Auswahl bleibt gespeichert. |
 | Aufgebraucht | Die Bohne wandert ins Archiv unten in der Liste, und ihre Dose wird frei. Mit *Wieder aktivieren* holst du sie zurück. |
@@ -158,6 +158,7 @@ Alle Aufrufe außer `GET /` brauchen den Token, entweder als Header `Authorizati
 
 | Version | Datum | Änderungen |
 |---|---|---|
+| 2.9 | 25.11.2026 | Gramm-Stepper in der Bohnen-Detailansicht in 0,1-g-Schritten statt 0,5 (Mahlgrad bleibt bei 0,5) |
 | 2.8 | 21.11.2026 | Konfliktschutz beim Sync (Änderungen werden zusammengeführt statt überschrieben), Tagessicherungen im Worker mit Zurückholen in den Einstellungen (neuer Worker-Code nötig); Knopf „Mitteilungs-URL“ entfernt; dunkler Look markiert die zuletzt gescannte Bohne; Strich-Symbol statt Emoji für „Bohnen“; Lupe im hellen Look in passender Farbe; Hinweise rutschen über die Update-Leiste; Gramm-Stepper geht nicht mehr auf 0 |
 | 2.7 | 21.11.2026 | Fehlerkorrekturen aus dem Code-Check: Neuladen oder ein wiederhergestellter Safari-Tab zählt keinen zweiten Scan mehr, ein Dosen-Link mit ungültiger ID kann den Sync nicht mehr blockieren, eigener Dialog statt Systemdialog beim Kopieren, der Offline-Speicher merkt sich keine Fehlerseiten mehr |
 | 2.6 | 21.11.2026 | Löschen und Umbenennen von Dosen (und Bohnen) mit eigener Rückfrage statt Systemdialog, der auf dem iPhone nicht zuverlässig kam; „Dose löschen“ auch in der Dosen-Ansicht nach dem Scan |

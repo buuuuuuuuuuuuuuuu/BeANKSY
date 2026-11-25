@@ -701,7 +701,7 @@ function schedulePush() {
 
 /* ---------- Version & Update-Hinweis ---------- */
 // Bei jedem Update hier, in version.json und in sw.js (CACHE) dieselbe Nummer eintragen.
-const APP_VERSION = '2.8';
+const APP_VERSION = '2.9';
 $('#appVersion').textContent = `BeANKSY · Version ${APP_VERSION}`;
 async function checkVersion() {
   try {
@@ -1217,8 +1217,9 @@ $('#view').addEventListener('click', async e => {
   }
   if (/^(dose|grind)[+-]$/.test(act) && bean) {
     const field = act.slice(0, -1);
-    const delta = act.endsWith('+') ? 0.5 : -0.5;
-    bean[field] = Math.max(field === 'dose' ? 0.5 : 0, round((bean[field] || 0) + delta));
+    const step = field === 'dose' ? 0.1 : 0.5; // Gramm in 0,1er-Schritten, Mahlgrad in 0,5ern
+    const delta = act.endsWith('+') ? step : -step;
+    bean[field] = Math.max(field === 'dose' ? 0.1 : 0, round((bean[field] || 0) + delta));
     return commit();
   }
   if (act === 'swap') return openTagSheet(btn.dataset.tag, false);
